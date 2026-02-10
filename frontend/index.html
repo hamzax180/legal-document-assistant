@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Legal Document Assistant</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <div class="app-layout">
+
+    <!-- ===== SIDEBAR (Left) ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">⚖️</div>
+        <div class="brand-text">
+          <span class="brand-name">LegalAI</span>
+          <span class="brand-tagline">Document Assistant</span>
+        </div>
+      </div>
+
+      <div class="sidebar-upload-area">
+        <div class="mini-upload-zone" id="miniUploadZone">
+          <span class="mini-upload-icon">＋</span>
+          <span>New Document</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section-label">Recent Documents</div>
+      <div class="sidebar-list" id="docList">
+        <div class="sidebar-empty">No documents yet.<br>Upload a PDF to get started.</div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-text">Powered by Gemini AI</div>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN AREA ===== -->
+    <div class="main-wrapper">
+
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">☰</button>
+        <div class="top-bar-title">
+          <h1>📄 AI Legal Document Assistant</h1>
+        </div>
+        <div class="top-bar-status" id="uploadStatus"></div>
+      </div>
+
+      <!-- Upload Modal Overlay (hidden by default) -->
+      <div class="upload-overlay" id="uploadOverlay">
+        <div class="upload-modal">
+          <button class="upload-modal-close" id="uploadModalClose">✕</button>
+          <h2>📤 Upload Legal Document</h2>
+          <p class="upload-modal-subtitle">Drag & drop your PDF or click to browse</p>
+          <div class="upload-zone" id="uploadZone">
+            <input id="pdfInput" type="file" accept="application/pdf" hidden />
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Drop PDF here or <span class="upload-link">browse files</span></div>
+            <div id="fileName" class="upload-file-name"></div>
+          </div>
+          <button id="uploadBtn" class="upload-btn" style="display:none;">Upload & Analyze</button>
+        </div>
+      </div>
+
+      <!-- Content Panels -->
+      <div class="content-panels">
+
+        <!-- MIDDLE PANEL: Chat (Now in the center) -->
+        <div class="panel panel-chat">
+          <div class="panel-header-bar">
+            <h2>💬 Chat with Document</h2>
+            <label class="eval-toggle-label">
+              <input id="evalToggle" type="checkbox" checked />
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">AI Eval</span>
+            </label>
+          </div>
+
+          <div id="chatBox" class="chat">
+            <div class="chat-welcome">
+              <div class="chat-welcome-icon">💬</div>
+              <h3>Ask anything about your document</h3>
+              <p>Upload a legal PDF and start asking questions.<br>The AI will analyze and respond using context from
+                your document.</p>
+            </div>
+          </div>
+
+          <div class="chat-input-row">
+            <input id="questionInput" type="text" placeholder="Ask a question about the document..." />
+            <button id="sendBtn" class="send-btn">
+              <span class="send-icon">➤</span>
+            </button>
+          </div>
+
+          <!-- Evaluation (kept in chat flow or moved to right? keeping in chat flow for now as requested by user's screenshot context usually implies it) -->
+          <!-- Actually, let's keep evaluation here as it belongs to the chat response -->
+          <div id="evalBox" class="result-container"></div>
+        </div>
+
+        <!-- RIGHT PANEL: Document Info (Summary, JSON, Questions) -->
+        <div class="panel panel-info">
+          <div class="panel-tabs">
+            <button class="panel-tab active" data-tab="summary">📋 Summary</button>
+            <button class="panel-tab" data-tab="json">🔍 JSON</button>
+            <button class="panel-tab" data-tab="suggest">💡 Questions</button>
+          </div>
+
+          <div class="panel-body">
+            <!-- Summary Tab -->
+            <div class="tab-content active" id="tab-summary">
+              <div class="tab-actions">
+                <button id="summarizeBtn" class="btn-secondary">Generate Summary</button>
+              </div>
+              <div id="summaryBox" class="summary-content"></div>
+              <div class="tab-empty-state" id="summaryEmpty">
+                <div class="empty-icon">📋</div>
+                <p>Upload a document and click<br>"Generate Summary"</p>
+              </div>
+            </div>
+
+            <!-- JSON Tab -->
+            <div class="tab-content" id="tab-json">
+              <pre id="jsonBox" class="pre"></pre>
+              <div class="tab-empty-state" id="jsonEmpty">
+                <div class="empty-icon">🔍</div>
+                <p>Extracted structured data<br>will appear here</p>
+              </div>
+            </div>
+
+            <!-- Suggest Tab -->
+            <div class="tab-content" id="tab-suggest">
+              <div id="suggestBox" class="suggest-chips"></div>
+              <div class="tab-empty-state" id="suggestEmpty">
+                <div class="empty-icon">💡</div>
+                <p>AI-suggested questions<br>will appear here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <footer>
+        <small>Created by <a href="https://www.linkedin.com/in/hamzahdal/" target="_blank"
+            rel="noopener noreferrer">Hamza</a></small>
+      </footer>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

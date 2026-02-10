@@ -1,0 +1,4 @@
+Layout updated!
+Chat is now in the center.
+Document Info is on the right.
+Access at http://127.0.0.1:3000

@@ -1,0 +1,13 @@
+__pycache__
+venv
+.venv
+.env
+.idea
+.DS_Store
+*.pyc
+node_modules
+dist
+coverage
+npm-debug.log
+backend/venv
+frontend/node_modules
