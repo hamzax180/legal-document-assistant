@@ -331,14 +331,14 @@ Answer: {answer}
 
 # ================= MODELS =================
 class AskBody(BaseModel):
-    doc_id: str
+    doc_id: Optional[str] = None
     question: str
     evaluate: bool = True
+    full_text: Optional[str] = None  # For stateless mode
 
-
-class DocIdBody(BaseModel):
-    doc_id: str
-
+class StatelessBody(BaseModel):
+    doc_id: Optional[str] = None
+    full_text: Optional[str] = None
 
 # ================= ROUTES =================
 @router.get("/")
@@ -362,25 +362,23 @@ async def upload_pdf(file: UploadFile = File(...)):
         print(f"[ERROR] PDF extraction failed: {e}")
         raise HTTPException(500, f"PDF processing failed: {str(e)}")
 
-    try:
-        index = build_index(pages)
-        print(f"[INFO] Index built")
-    except Exception as e:
-        print(f"[ERROR] Index building failed: {e}")
-        raise HTTPException(500, f"Embedding failed: {str(e)}")
-
+    # In stateless mode for Vercel, we might skip indexing to save time/resources
+    # But let's keep it if we can, or just rely on full_text return.
+    
+    structured = {}
+    # Skip structured extraction for speed in stateless demo if needed, 
+    # but let's try to keep it.
     try:
         structured = extract_structured_info("\n".join(pages))
         print(f"[INFO] Structured info extracted")
     except Exception as e:
         print(f"[ERROR] Structured info extraction failed: {e}")
-        # Continue without structured info if it fails, or raise?
-        # Let's log and keep going or handle gracefully
         structured = {}
 
     doc_id = str(uuid.uuid4())
+    full_text = "\n".join(pages)
 
-    # Persist to SQLite
+    # Persist to SQLite (Best Effort)
     try:
         save_document(doc_id, file.filename, pages, structured)
         print(f"[INFO] Document saved to DB: {doc_id}")
@@ -389,25 +387,35 @@ async def upload_pdf(file: UploadFile = File(...)):
         pass
 
     # Cache in memory
-    DOCS[doc_id] = {
-        "pages": pages,
-        "index": index,
-        "chat": [],
-        "full_text": "\n".join(pages)
-    }
+    try:
+        index = build_index(pages)
+        DOCS[doc_id] = {
+            "pages": pages,
+            "index": index,
+            "chat": [],
+            "full_text": full_text
+        }
+    except Exception as e:
+        print(f"[ERROR] Indexing failed: {e}")
+        # Continue without index (will force stateless mode downstream)
 
     return {
         "doc_id": doc_id,
         "filename": file.filename,
         "structured": structured,
-        "pages": len(pages)
+        "pages": len(pages),
+        "full_text": full_text  # RETURN THIS for stateless client-side storage
     }
 
 
 @router.get("/documents")
 def get_all_documents():
     """List all uploaded documents."""
-    return list_documents()
+    try:
+        return list_documents()
+    except Exception as e:
+        print(f"[ERROR] listing documents failed: {e}")
+        return []
 
 
 @router.get("/documents/{doc_id}")
@@ -444,9 +452,42 @@ def remove_document(doc_id: str):
 
 @router.post("/ask")
 def ask_question(body: AskBody):
+    # STATELESS HANDLING
+    if body.full_text:
+        # Context Stuffing (Best for Vercel/Stateless)
+        # We skip RAG index lookup and just dump text into prompt.
+        # Gemini Flash has 1M context, so this is fine for most docs.
+        
+        prompt = f"""
+Use the provided document text to answer the question.
+
+Document Text:
+{body.full_text}
+
+Question: {body.question}
+"""
+        answer = safe_generate(prompt)
+        
+        # We don't have persistent chat history in stateless mode unless client sends it.
+        # For this demo, we just return the answer.
+        
+        evaluation = None
+        if body.evaluate:
+             try:
+                 evaluation = evaluate_response(body.question, body.full_text, answer)
+             except:
+                 pass
+
+        return {
+            "answer": answer,
+            "chat_history": [], # Stateless, we don't track history here
+            "evaluation": evaluation
+        }
+
+    # STATEFUL HANDLING (Legacy/Local)
     doc = ensure_doc_in_cache(body.doc_id)
     if not doc:
-        raise HTTPException(404, "Invalid doc_id")
+        raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
 
     answer, _context = rag_qa(
         body.question,
@@ -481,11 +522,20 @@ def ask_question(body: AskBody):
 
 
 @router.post("/summarize")
-def summarize_document(body: DocIdBody):
+def summarize_document(body: StatelessBody):
     """Generate a comprehensive summary of the entire document."""
-    doc = ensure_doc_in_cache(body.doc_id)
-    if not doc:
-        raise HTTPException(404, "Invalid doc_id")
+    
+    text_to_summarize = None
+    
+    if body.full_text:
+        text_to_summarize = body.full_text
+    else:
+        doc = ensure_doc_in_cache(body.doc_id)
+        if doc:
+            text_to_summarize = doc['full_text']
+            
+    if not text_to_summarize:
+        raise HTTPException(404, "Document not found")
 
     prompt = f"""
 You are a legal document analyst. Provide a clear, well-structured summary of the following legal document.
@@ -502,19 +552,29 @@ Summarize each major section of the document.
 
 ---
 Document Text:
-{doc['full_text'][:12000]}
-"""
+{text_to_summarize[:100000]} 
+""" 
+# Limit to 100k chars to be safe, though Flash handles more.
 
     result = safe_generate(prompt)
     return {"summary": result}
 
 
 @router.post("/suggest")
-def suggest_questions(body: DocIdBody):
+def suggest_questions(body: StatelessBody):
     """Auto-generate relevant questions about the document."""
-    doc = ensure_doc_in_cache(body.doc_id)
-    if not doc:
-        raise HTTPException(404, "Invalid doc_id")
+    
+    text_for_context = None
+    
+    if body.full_text:
+         text_for_context = body.full_text
+    else:
+        doc = ensure_doc_in_cache(body.doc_id)
+        if doc:
+            text_for_context = doc['full_text']
+            
+    if not text_for_context:
+        raise HTTPException(404, "Document not found")
 
     prompt = f"""
 You are a legal document assistant. Based on the document below, suggest exactly 5 important questions
@@ -524,7 +584,7 @@ Return ONLY a JSON array of strings, like:
 ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
 
 Document Text:
-{doc['full_text'][:8000]}
+{text_for_context[:50000]}
 """
 
     raw = safe_generate(prompt)

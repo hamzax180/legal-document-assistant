@@ -1,8 +1,7 @@
-// Docker/K8s compatibility: Use relative path /api in production (Nginx proxy),
-// but keep http://127.0.0.1:8000 for local dev (port 3000).
 const API_BASE = window.location.port === "3000" ? "http://127.0.0.1:8000" : "/api";
 
 let docId = null;
+let currentDocFullText = null; // Stateless mode support
 let selectedFile = null;
 
 
@@ -255,6 +254,8 @@ async function loadDocument(id) {
     const data = await res.json();
 
     docId = data.doc_id;
+    // NOTE: In stateful mode restart, we might lose full_text if not persisted.
+    // Ideally user uploads new file for session. We don't have full persistence here.
 
     // Update sidebar active state
     document.querySelectorAll(".sidebar-item").forEach(el => {
@@ -311,6 +312,7 @@ async function deleteDoc(id) {
 
     if (docId === id) {
       docId = null;
+      currentDocFullText = null;
       jsonBox.textContent = "";
       summaryBox.innerHTML = "";
       suggestBox.innerHTML = "";
@@ -421,6 +423,8 @@ uploadBtn.onclick = async () => {
     const data = await res.json();
 
     docId = data.doc_id;
+    currentDocFullText = data.full_text || null; // Capture for stateless ops
+
     uploadStatus.textContent = `✓ Uploaded: ${data.filename} (${data.pages} pages)`;
     jsonBox.textContent = JSON.stringify(data.structured, null, 2);
     summaryBox.innerHTML = "";
@@ -476,7 +480,10 @@ summarizeBtn.onclick = async () => {
     const res = await fetch(`${API_BASE}/summarize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doc_id: docId })
+      body: JSON.stringify({
+        doc_id: docId,
+        full_text: currentDocFullText // Stateless support
+      })
     });
 
     if (!res.ok) {
@@ -509,7 +516,10 @@ async function fetchSuggestions(id) {
     const res = await fetch(`${API_BASE}/suggest`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doc_id: id })
+      body: JSON.stringify({
+        doc_id: id,
+        full_text: currentDocFullText // Stateless support
+      })
     });
 
     const data = await res.json();
@@ -562,7 +572,8 @@ sendBtn.onclick = async () => {
       body: JSON.stringify({
         doc_id: docId,
         question: q,
-        evaluate: evalToggle.checked
+        evaluate: evalToggle.checked,
+        full_text: currentDocFullText // Stateless support
       })
     });
 
@@ -575,7 +586,13 @@ sendBtn.onclick = async () => {
     }
 
     const data = await res.json();
-    renderHistory(data.chat_history);
+
+    // Stateless mode handler: if chat_history missing but answer exists
+    if ((!data.chat_history || data.chat_history.length === 0) && data.answer) {
+      addMsg("assistant", data.answer);
+    } else {
+      renderHistory(data.chat_history);
+    }
 
     if (data.evaluation && data.evaluation.helpfulness !== null) {
       evalBox.innerHTML = `
