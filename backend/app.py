@@ -37,7 +37,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL_ID = "gemini-2.5-flash"
+MODEL_ID = "gemini-1.5-flash"
 EMBEDDING_MODEL_ID = "text-embedding-004"
 
 # No local embedder: use API
