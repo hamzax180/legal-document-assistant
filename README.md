@@ -55,9 +55,9 @@ graph TD
     -   **Secrets**: Securely store the `GEMINI_API_KEY`.
 
 ## Project Structure
-- `backend/`: FastAPI application (Python).
-- `frontend/`: Vanilla JS/HTML/CSS interface.
-- `k8s/`: Kubernetes manifests for deployment.
+- [`backend/`](backend/README.md): FastAPI application (Python).
+- [`frontend/`](frontend/README.md): Vanilla JS/HTML/CSS interface.
+- [`k8s/`](k8s/README.md): Kubernetes manifests for deployment.
 
 ## Quick Start (Docker)
 
@@ -77,13 +77,13 @@ graph TD
     ```bash
     docker-compose up --build
     ```
-    *(Note: If you don't have docker-compose, check `README_K8S.md` for individual build commands)*
+    *(Note: If you don't have docker-compose, check `k8s/README.md` for individual build commands)*
 
 4.  **Access**:
     Open `http://localhost` in your browser.
 
 ## Kubernetes Deployment
-See [README_K8S.md](README_K8S.md) for detailed instructions on deploying to a local Kubernetes cluster.
+See [k8s/README.md](k8s/README.md) for detailed instructions on deploying to a local Kubernetes cluster.
 
 ## Security Note
 This project requires a Google Gemini API Key.
