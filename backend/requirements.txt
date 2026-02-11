@@ -3,7 +3,5 @@ uvicorn[standard]
 python-multipart
 PyMuPDF
 google-genai
-sentence-transformers
-faiss-cpu
 numpy
 pydantic

@@ -8,14 +8,14 @@ from typing import Dict, Any, List
 
 import fitz
 import numpy as np
-import faiss
+# REMOVED: import faiss
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from google import genai
-from sentence_transformers import SentenceTransformer
+# REMOVED: from sentence_transformers import SentenceTransformer
 
 from database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
 
@@ -38,7 +38,10 @@ if not GEMINI_API_KEY:
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_ID = "gemini-2.5-flash"
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+EMBEDDING_MODEL_ID = "text-embedding-004"
+
+# No local embedder: use API
+# embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 # ================= APP =================
@@ -51,7 +54,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory cache for FAISS indexes + pages (rebuilt on demand from DB)
+# In-memory cache for embeddings + pages (rebuilt on demand from DB)
 DOCS: Dict[str, Dict[str, Any]] = {}
 
 
@@ -119,6 +122,26 @@ def safe_generate(prompt: str) -> str:
     raise RateLimitError(f"Rate limit exceeded after 5 retries. Last error: {last_error}")
 
 
+def get_embedding(text: str) -> List[float]:
+    """Get embedding from Gemini API."""
+    try:
+        # Truncate to avoid limit (input limit is usually large (~3k-10k tokens), but let's be safe with 9000 chars)
+        safe_text = text[:9000]
+        result = client.models.embed_content(
+            model=EMBEDDING_MODEL_ID,
+            contents=safe_text
+        )
+        # Handle new SDK response structure
+        # Depending on SDK version, it might be result.embeddings[0].values or result.embedding
+        if hasattr(result, 'embeddings'):
+             return result.embeddings[0].values
+        return result.embedding
+    except Exception as e:
+        print(f"[ERROR] Embedding failed: {e}")
+        # Fallback: zero vector (not ideal but prevents crash)
+        return [0.0] * 768
+
+
 def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     return [page.get_text() for page in doc]
@@ -146,12 +169,13 @@ def extract_structured_info(text: str):
     return {"error": "Invalid JSON from model", "raw_output": raw[:800]}
 
 
-# ================= FAISS =================
-def build_faiss_index(pages: List[str]):
-    emb = embedder.encode(pages).astype("float32")
-    index = faiss.IndexFlatL2(emb.shape[1])
-    index.add(emb)
-    return index
+# ================= VECTOR SEARCH (NUMPY) =================
+def build_index(pages: List[str]):
+    """Build a simple numpy embedding index."""
+    embeddings = []
+    for page in pages:
+        embeddings.append(get_embedding(page))
+    return np.array(embeddings, dtype="float32")
 
 
 def ensure_doc_in_cache(doc_id: str) -> dict:
@@ -164,7 +188,7 @@ def ensure_doc_in_cache(doc_id: str) -> dict:
         return None
 
     pages = doc_data["pages"]
-    index = build_faiss_index(pages)
+    index = build_index(pages)
 
     DOCS[doc_id] = {
         "pages": pages,
@@ -176,11 +200,28 @@ def ensure_doc_in_cache(doc_id: str) -> dict:
 
 
 # ================= RAG =================
-def rag_qa(query: str, pages: List[str], index, history: List[dict]):
-    q_emb = embedder.encode([query]).astype("float32")
-    _, I = index.search(q_emb, k=3)
+def rag_qa(query: str, pages: List[str], index_embeddings, history: List[dict]):
+    q_emb = np.array(get_embedding(query), dtype="float32")
+    
+    # Cosine similarity: (A . B) / (|A| * |B|)
+    # Note: If embeddings are normalized, |A|=1, |B|=1, so just dot product.
+    # But let's compute full cosine to be safe.
+    
+    norm_index = np.linalg.norm(index_embeddings, axis=1)
+    norm_query = np.linalg.norm(q_emb)
+    
+    # Avoid division by zero
+    if norm_query == 0:
+        scores = np.zeros(len(pages))
+    else:
+        # Add epsilon to avoid div by zero in index
+        norm_index[norm_index == 0] = 1e-10
+        scores = np.dot(index_embeddings, q_emb) / (norm_index * norm_query)
 
-    context = "\n---\n".join(pages[i] for i in I[0])
+    # Get top 3 indices
+    top_k_indices = np.argsort(scores)[::-1][:3]
+
+    context = "\n---\n".join(pages[i] for i in top_k_indices)
     history_text = "\n".join(
         f"User: {m['user']}\nAssistant: {m['assistant']}"
         for m in history
@@ -262,7 +303,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     pdf_bytes = await file.read()
     pages = extract_text_from_pdf_bytes(pdf_bytes)
-    index = build_faiss_index(pages)
+    index = build_index(pages)
     structured = extract_structured_info("\n".join(pages))
 
     doc_id = str(uuid.uuid4())
