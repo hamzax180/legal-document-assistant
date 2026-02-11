@@ -12,12 +12,16 @@ from typing import List, Dict, Any, Optional
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 
 if IS_VERCEL:
-    # Use ephemeral storage in /tmp
-    DB_PATH = "/tmp/legal_docs.db"
+    # Use in-memory DB for maximum stability on Vercel
+    # We rely on client-side full_text (stateless mode) for persistence
+    # but keep this for temporary duration of lambda life.
+    DB_PATH = ":memory:"
 else:
     # Use local storage
     DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
 
+# Global connection for in-memory DB on Vercel to persist across function calls
+_global_mem_conn = None
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -48,9 +52,19 @@ CREATE TABLE IF NOT EXISTS chat_history (
 """
 
 def get_conn():
-    # Detect if we need to initialize (if file doesn't exist yet)
-    should_init = not os.path.exists(DB_PATH)
+    global _global_mem_conn
     
+    if IS_VERCEL:
+        if _global_mem_conn is None:
+            _global_mem_conn = sqlite3.connect(":memory:", check_same_thread=False)
+            _global_mem_conn.row_factory = sqlite3.Row
+            _global_mem_conn.execute("PRAGMA foreign_keys = ON")
+            _global_mem_conn.executescript(SCHEMA_SQL)
+            _global_mem_conn.commit()
+        return _global_mem_conn
+
+    # Local file-based DB
+    should_init = not os.path.exists(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -66,7 +80,8 @@ def init_db():
     # Explicit initialization wrapper if needed, 
     # but get_conn now handles it automatically.
     conn = get_conn()
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
 
 
 def save_document(doc_id: str, filename: str, pages: List[str],
