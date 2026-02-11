@@ -99,7 +99,8 @@ def save_document(doc_id: str, filename: str, pages: List[str],
             (doc_id, i, page)
         )
     conn.commit()
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
 
 
 def list_documents() -> List[dict]:
@@ -107,7 +108,8 @@ def list_documents() -> List[dict]:
     rows = conn.execute(
         "SELECT id, filename, page_count, created_at FROM documents ORDER BY created_at DESC"
     ).fetchall()
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
     return [dict(r) for r in rows]
 
 
@@ -115,7 +117,8 @@ def get_document(doc_id: str) -> Optional[dict]:
     conn = get_conn()
     doc = conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
     if not doc:
-        conn.close()
+        if not IS_VERCEL:
+            conn.close()
         return None
 
     pages = conn.execute(
@@ -127,7 +130,8 @@ def get_document(doc_id: str) -> Optional[dict]:
         (doc_id,)
     ).fetchall()
 
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
 
     # Pair up chat messages into user/assistant pairs
     chat_pairs = []
@@ -166,12 +170,14 @@ def save_chat_message(doc_id: str, role: str, message: str) -> None:
         (doc_id, role, message)
     )
     conn.commit()
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
 
 
 def delete_document(doc_id: str) -> bool:
     conn = get_conn()
     cursor = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
     conn.commit()
-    conn.close()
+    if not IS_VERCEL:
+        conn.close()
     return cursor.rowcount > 0
