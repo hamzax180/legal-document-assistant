@@ -8,7 +8,15 @@ import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
+# Check if running on Vercel (or similar serverless env)
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+
+if IS_VERCEL:
+    # Use ephemeral storage in /tmp
+    DB_PATH = "/tmp/legal_docs.db"
+else:
+    # Use local storage
+    DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
 
 
 def get_conn():
