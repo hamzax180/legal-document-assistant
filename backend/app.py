@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 import fitz
 import numpy as np
 # REMOVED: import faiss
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -27,7 +27,6 @@ except ImportError:
     from backend.database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
 
 
-
 # ================= CUSTOM EXCEPTIONS =================
 class RateLimitError(Exception):
     """Raised when Gemini API rate limit is exhausted after retries."""
@@ -42,9 +41,18 @@ class GeminiError(Exception):
 # ================= CONFIG =================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable not set")
+    # In Vercel build phase, env vars might be missing depending on config, but runtime they should be there.
+    # We'll allow it specifically for build if needed, but for now raise to fail fast.
+    # Actually, let's print a warning instead of crashing immediately if it's imported during build?
+    # But init is runtime.
+    if os.environ.get("VERCEL"):
+         print("[WARN] GEMINI_API_KEY not set yet")
+    else:
+         raise ValueError("GEMINI_API_KEY environment variable not set")
+    client = None # Handle None later
+else:
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
-client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_ID = "gemini-2.5-flash"
 EMBEDDING_MODEL_ID = "text-embedding-004"
 
@@ -61,6 +69,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+router = APIRouter()
 
 # In-memory cache for embeddings + pages (rebuilt on demand from DB)
 DOCS: Dict[str, Dict[str, Any]] = {}
@@ -117,6 +127,9 @@ async def general_error_handler(request: Request, exc: Exception):
 
 # ================= HELPERS =================
 def safe_generate(prompt: str) -> str:
+    if not client:
+        raise GeminiError("Gemini Client not initialized (Missing API Key)")
+        
     last_error = None
     for attempt in range(5):
         try:
@@ -139,6 +152,10 @@ def safe_generate(prompt: str) -> str:
 
 def get_embedding(text: str) -> List[float]:
     """Get embedding from Gemini API."""
+    if not client:
+        print("[ERROR] No Gemini Client")
+        return [0.0] * 768
+
     try:
         # Truncate to avoid limit (input limit is usually large (~3k-10k tokens), but let's be safe with 9000 chars)
         safe_text = text[:9000]
@@ -306,12 +323,12 @@ class DocIdBody(BaseModel):
 
 
 # ================= ROUTES =================
-@app.get("/")
+@router.get("/")
 def root():
     return {"message": "Backend running. Visit /docs"}
 
 
-@app.post("/upload")
+@router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files allowed")
@@ -351,9 +368,6 @@ async def upload_pdf(file: UploadFile = File(...)):
         print(f"[INFO] Document saved to DB: {doc_id}")
     except Exception as e:
         print(f"[ERROR] Database save failed: {e}")
-        # We can continue without DB (stateless mode fallback) or raise
-        # For now, let's log and continue so the user sees the result
-        # raise HTTPException(500, f"Database error: {str(e)}")
         pass
 
     # Cache in memory
@@ -372,13 +386,13 @@ async def upload_pdf(file: UploadFile = File(...)):
     }
 
 
-@app.get("/documents")
+@router.get("/documents")
 def get_all_documents():
     """List all uploaded documents."""
     return list_documents()
 
 
-@app.get("/documents/{doc_id}")
+@router.get("/documents/{doc_id}")
 def get_single_document(doc_id: str):
     """Load a document by ID, including structured data and chat history."""
     doc_data = get_document(doc_id)
@@ -398,7 +412,7 @@ def get_single_document(doc_id: str):
     }
 
 
-@app.delete("/documents/{doc_id}")
+@router.delete("/documents/{doc_id}")
 def remove_document(doc_id: str):
     """Delete a document and all its data."""
     if doc_id in DOCS:
@@ -410,7 +424,7 @@ def remove_document(doc_id: str):
     return {"message": "Document deleted"}
 
 
-@app.post("/ask")
+@router.post("/ask")
 def ask_question(body: AskBody):
     doc = ensure_doc_in_cache(body.doc_id)
     if not doc:
@@ -448,7 +462,7 @@ def ask_question(body: AskBody):
     }
 
 
-@app.post("/summarize")
+@router.post("/summarize")
 def summarize_document(body: DocIdBody):
     """Generate a comprehensive summary of the entire document."""
     doc = ensure_doc_in_cache(body.doc_id)
@@ -477,7 +491,7 @@ Document Text:
     return {"summary": result}
 
 
-@app.post("/suggest")
+@router.post("/suggest")
 def suggest_questions(body: DocIdBody):
     """Auto-generate relevant questions about the document."""
     doc = ensure_doc_in_cache(body.doc_id)
@@ -516,3 +530,9 @@ Document Text:
         "Are there any risk clauses?",
         "What are the main obligations?"
     ]}
+
+# Mount Router with conditionally applied prefix
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+PREFIX = "/api" if IS_VERCEL else ""
+app.include_router(router, prefix=PREFIX)
+print(f"[INFO] Router mounted with prefix: '{PREFIX}'")
