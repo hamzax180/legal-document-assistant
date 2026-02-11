@@ -6,7 +6,7 @@ import random
 import traceback
 from typing import Dict, Any, List
 
-import fitz
+# import fitz  <-- Removed to save space
 import numpy as np
 # REMOVED: import faiss
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, APIRouter
@@ -192,9 +192,13 @@ def get_embedding(text: str) -> List[float]:
         return [0.0] * 768
 
 
+import io
+import pypdf  # Lighter alternative to PyMuPDF
+
 def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    return [page.get_text() for page in doc]
+    stream = io.BytesIO(pdf_bytes)
+    reader = pypdf.PdfReader(stream)
+    return [page.extract_text() for page in reader.pages]
 
 
 # ================= STRUCTURED JSON =================
