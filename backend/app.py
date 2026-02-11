@@ -17,7 +17,15 @@ from pydantic import BaseModel
 from google import genai
 # REMOVED: from sentence_transformers import SentenceTransformer
 
-from database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+except ImportError:
+    # Try fully qualified import if necessary (though sys.path fix should handle it)
+    from backend.database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+
 
 
 # ================= CUSTOM EXCEPTIONS =================
