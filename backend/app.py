@@ -4,7 +4,7 @@ import uuid
 import time
 import random
 import traceback
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # import fitz  <-- Removed to save space
 import numpy as np
