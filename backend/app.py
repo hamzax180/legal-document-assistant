@@ -1,4 +1,8 @@
 import os
+import sys
+
+print("[INFO] Loading backend/app.py...", flush=True)  # Debug print
+
 import json
 import uuid
 import time
@@ -17,7 +21,6 @@ from pydantic import BaseModel
 from google import genai
 # REMOVED: from sentence_transformers import SentenceTransformer
 
-import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
@@ -40,18 +43,29 @@ class GeminiError(Exception):
 
 # ================= CONFIG =================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    # In Vercel build phase, env vars might be missing depending on config, but runtime they should be there.
-    # We'll allow it specifically for build if needed, but for now raise to fail fast.
-    # Actually, let's print a warning instead of crashing immediately if it's imported during build?
-    # But init is runtime.
-    if os.environ.get("VERCEL"):
-         print("[WARN] GEMINI_API_KEY not set yet")
-    else:
-         raise ValueError("GEMINI_API_KEY environment variable not set")
-    client = None # Handle None later
-else:
-    client = genai.Client(api_key=GEMINI_API_KEY)
+
+# Lazy init client
+client = None
+
+def get_gemini_client():
+    global client
+    if client:
+        return client
+        
+    if not GEMINI_API_KEY:
+        if os.environ.get("VERCEL"):
+             print("[WARN] GEMINI_API_KEY not set yet", flush=True)
+             return None
+        else:
+             raise ValueError("GEMINI_API_KEY environment variable not set")
+    
+    try:
+        print("[INFO] Initializing Gemini Client...", flush=True)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        return client
+    except Exception as e:
+        print(f"[ERROR] Failed to init Gemini Client: {e}", flush=True)
+        return None
 
 MODEL_ID = "gemini-2.5-flash"
 EMBEDDING_MODEL_ID = "text-embedding-004"
@@ -127,6 +141,7 @@ async def general_error_handler(request: Request, exc: Exception):
 
 # ================= HELPERS =================
 def safe_generate(prompt: str) -> str:
+    client = get_gemini_client()
     if not client:
         raise GeminiError("Gemini Client not initialized (Missing API Key)")
         
@@ -168,8 +183,9 @@ def safe_generate(prompt: str) -> str:
 
 def get_embedding(text: str) -> List[float]:
     """Get embedding from Gemini API."""
+    client = get_gemini_client()
     if not client:
-        print("[ERROR] No Gemini Client")
+        print("[ERROR] No Gemini Client", flush=True)
         return [0.0] * 768
 
     try:
