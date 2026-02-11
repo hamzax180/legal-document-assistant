@@ -19,43 +19,53 @@ else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
 
 
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    filename TEXT NOT NULL,
+    full_text TEXT NOT NULL,
+    structured_json TEXT,
+    page_count INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL,
+    page_num INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS chat_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+"""
+
 def get_conn():
+    # Detect if we need to initialize (if file doesn't exist yet)
+    should_init = not os.path.exists(DB_PATH)
+    
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    
+    if should_init:
+        conn.executescript(SCHEMA_SQL)
+        conn.commit()
+        
     return conn
 
 
 def init_db():
+    # Explicit initialization wrapper if needed, 
+    # but get_conn now handles it automatically.
     conn = get_conn()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS documents (
-            id TEXT PRIMARY KEY,
-            filename TEXT NOT NULL,
-            full_text TEXT NOT NULL,
-            structured_json TEXT,
-            page_count INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE TABLE IF NOT EXISTS pages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            doc_id TEXT NOT NULL,
-            page_num INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS chat_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            doc_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            message TEXT NOT NULL,
-            created_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
-        );
-    """)
-    conn.commit()
     conn.close()
 
 
