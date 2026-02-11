@@ -37,7 +37,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL_ID = "gemini-1.5-flash"
+MODEL_ID = "gemini-2.5-flash"
 EMBEDDING_MODEL_ID = "text-embedding-004"
 
 # No local embedder: use API
@@ -301,10 +301,32 @@ async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files allowed")
 
+    print(f"[INFO] Uploading file: {file.filename}")
     pdf_bytes = await file.read()
-    pages = extract_text_from_pdf_bytes(pdf_bytes)
-    index = build_index(pages)
-    structured = extract_structured_info("\n".join(pages))
+    print(f"[INFO] File read, size: {len(pdf_bytes)} bytes")
+    
+    try:
+        pages = extract_text_from_pdf_bytes(pdf_bytes)
+        print(f"[INFO] Text extracted, pages: {len(pages)}")
+    except Exception as e:
+        print(f"[ERROR] PDF extraction failed: {e}")
+        raise HTTPException(500, f"PDF processing failed: {str(e)}")
+
+    try:
+        index = build_index(pages)
+        print(f"[INFO] Index built")
+    except Exception as e:
+        print(f"[ERROR] Index building failed: {e}")
+        raise HTTPException(500, f"Embedding failed: {str(e)}")
+
+    try:
+        structured = extract_structured_info("\n".join(pages))
+        print(f"[INFO] Structured info extracted")
+    except Exception as e:
+        print(f"[ERROR] Structured info extraction failed: {e}")
+        # Continue without structured info if it fails, or raise?
+        # Let's log and keep going or handle gracefully
+        structured = {}
 
     doc_id = str(uuid.uuid4())
 
