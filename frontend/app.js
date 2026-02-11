@@ -42,7 +42,7 @@ async function handleApiError(res, fallbackMsg) {
     showToast(msg, "warning");
     return msg;
   } else if (res.status === 503) {
-    const msg = "AI service temporarily unavailable. Please try again in a moment.";
+    const msg = errorData.detail || errorData.message || "AI service temporarily unavailable. Please try again in a moment.";
     showToast(msg, "warning");
     return msg;
   } else if (res.status === 500) {

@@ -146,6 +146,22 @@ def safe_generate(prompt: str) -> str:
                 print(f"[WARN] Rate limited (attempt {attempt + 1}/5), retrying in {wait_time:.1f}s...")
                 time.sleep(wait_time)
                 continue
+            
+            # Fallback logic for 404/Not Found/Invalid Argument implies model issue
+            if "not found" in err_str or "404" in err_str or "invalid argument" in err_str:
+                print(f"[WARN] Model {MODEL_ID} failed ({e}), trying fallback to gemini-1.5-flash")
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=prompt
+                    )
+                    return response.text.strip()
+                except Exception as e2:
+                    print(f"[ERROR] Fallback model also failed: {e2}")
+                    # Raise original error to avoid confusion, or the new one?
+                    # Let's raise the fallback error as it's the last attempt
+                    raise GeminiError(f"AI model error (fallback failed): {str(e2)}")
+
             raise GeminiError(f"AI model error: {str(e)}")
     raise RateLimitError(f"Rate limit exceeded after 5 retries. Last error: {last_error}")
 
@@ -164,12 +180,14 @@ def get_embedding(text: str) -> List[float]:
             contents=safe_text
         )
         # Handle new SDK response structure
-        # Depending on SDK version, it might be result.embeddings[0].values or result.embedding
         if hasattr(result, 'embeddings'):
              return result.embeddings[0].values
         return result.embedding
     except Exception as e:
         print(f"[ERROR] Embedding failed: {e}")
+        # Try fallback model if potentially model related (though embedding-004 is standard)
+        # We won't fallback embedding model for now as 004 is very standard.
+        
         # Fallback: zero vector (not ideal but prevents crash)
         return [0.0] * 768
 
