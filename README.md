@@ -18,18 +18,18 @@ The application is containerized using Docker and designed to run on Kubernetes 
 ### High-Level Design
 ```mermaid
 graph TD
-    User[User Browser] -->|HTTP/80| FrontendSVC[K8s Service: Frontend (LoadBalancer)]
-    FrontendSVC -->|Round Robin| PodFE[Pod: Frontend (Nginx)]
+    User[User Browser] -->|HTTP/80| FrontendSVC["K8s Service: Frontend (LoadBalancer)"]
+    FrontendSVC -->|Round Robin| PodFE["Pod: Frontend (Nginx)"]
     
     subgraph Kubernetes Cluster
         PodFE -->|Serve Static| HTML[index.html / app.js]
-        PodFE -->|Proxy /api| BackendSVC[K8s Service: Backend (ClusterIP)]
+        PodFE -->|Proxy /api| BackendSVC["K8s Service: Backend (ClusterIP)"]
         
-        BackendSVC -->|Round Robin| PodBE[Pod: Backend (FastAPI)]
+        BackendSVC -->|Round Robin| PodBE["Pod: Backend (FastAPI)"]
         
         subgraph "Pod: Backend"
             API[FastAPI] -->|Parse| PyMuPDF
-            API -->|Search| FAISS[(In-Memory Vector DB)]
+            API -->|Search| FAISS["(In-Memory Vector DB)"]
         end
     end
     
