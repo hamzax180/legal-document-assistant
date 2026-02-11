@@ -1,5 +1,12 @@
-# Access Your Application
+# Deployment Access
 
-Click the link below to open the Legal Document Assistant:
+The Legal Document Assistant is deployed and accessible at:
 
-**[http://localhost:30888](http://localhost:30888)**
+**[https://legal-ai-doc-assistant.vercel.app](https://legal-ai-doc-assistant.vercel.app)**
+
+## Deployment Details
+- **Platform**: Vercel (Serverless)
+- **Branch**: `vercel-deploy`
+- **Features**: PDF Upload, RAG Q&A, Summarization (Stateless Mode)
+- **Backend**: Python FastAPI (Stateless)
+- **Frontend**: Vanilla JS

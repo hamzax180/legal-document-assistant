@@ -2,8 +2,9 @@
 
 A RAG-based legal document assistant that allows users to upload PDFs and ask questions using Google's Gemini Flash model.
 
-![Screenshot](https://via.placeholder.com/800x400?text=AI+Legal+Assistant)
-*(Add actual screenshot here)*
+[![Live Demo](https://img.shields.io/badge/Live-App-success?style=for-the-badge&logo=vercel)](https://legal-ai-doc-assistant.vercel.app)
+
+**Access the live application here:** [https://legal-ai-doc-assistant.vercel.app](https://legal-ai-doc-assistant.vercel.app)
 
 ## Features
 - **PDF Upload & Parsing**: Extracts text from PDF documents instantly.
