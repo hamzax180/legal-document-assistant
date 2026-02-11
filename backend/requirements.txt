@@ -1,7 +1,9 @@
 fastapi
-uvicorn[standard]
+pypdf
+google-generativeai
 python-multipart
-PyMuPDF
-google-genai
+uvicorn
+python-dotenv
+psycopg2-binary
 numpy
 pydantic
