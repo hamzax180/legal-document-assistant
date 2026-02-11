@@ -95,7 +95,10 @@ DOCS: Dict[str, Dict[str, Any]] = {}
 def startup():
     print(f"[INFO] VERCEL env var: {os.environ.get('VERCEL')}", flush=True)
     from database import DB_PATH
-    print(f"[INFO] DB_PATH: {DB_PATH}", flush=True)
+    if DB_PATH:
+        print(f"[INFO] DB_PATH: {DB_PATH}", flush=True)
+    else:
+        print("[INFO] Running on Vercel (Postgres)", flush=True)
     try:
         init_db()
         print("[INFO] Database initialized successfully", flush=True)

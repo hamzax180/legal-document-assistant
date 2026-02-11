@@ -16,6 +16,7 @@ if IS_VERCEL:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     DB_URL = os.environ.get("POSTGRES_URL")
+    DB_PATH = None
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
 
