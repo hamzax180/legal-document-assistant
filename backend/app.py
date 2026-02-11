@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from google import genai
+# from google import genai  <-- Lazy import to avoid hang?
 # REMOVED: from sentence_transformers import SentenceTransformer
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -61,6 +61,7 @@ def get_gemini_client():
     
     try:
         print("[INFO] Initializing Gemini Client...", flush=True)
+        from google import genai
         client = genai.Client(api_key=GEMINI_API_KEY)
         return client
     except Exception as e:
