@@ -12,6 +12,46 @@ A RAG-based legal document assistant that allows users to upload PDFs and ask qu
 - **Self-Evaluation**: Automatically grades answers on Helpfulness, Completeness, and Relevance.
 - **Privacy-First**: In-memory processing (no persistent database storage of sensitive documents).
 
+## Architecture
+The application is containerized using Docker and designed to run on Kubernetes with high availability.
+
+### High-Level Design
+```mermaid
+graph TD
+    User[User Browser] -->|HTTP/80| FrontendSVC[K8s Service: Frontend (LoadBalancer)]
+    FrontendSVC -->|Round Robin| PodFE[Pod: Frontend (Nginx)]
+    
+    subgraph Kubernetes Cluster
+        PodFE -->|Serve Static| HTML[index.html / app.js]
+        PodFE -->|Proxy /api| BackendSVC[K8s Service: Backend (ClusterIP)]
+        
+        BackendSVC -->|Round Robin| PodBE[Pod: Backend (FastAPI)]
+        
+        subgraph "Pod: Backend"
+            API[FastAPI] -->|Parse| PyMuPDF
+            API -->|Search| FAISS[(In-Memory Vector DB)]
+        end
+    end
+    
+    PodBE -->|HTTPS| Gemini[Google Gemini API]
+```
+
+### Components
+1.  **Frontend (Nginx)**: 
+    -   Serves the static web assets.
+    -   Acts as a reverse proxy, forwarding `/api` requests to the internal backend service.
+    -   Running 2 Replicas for availability.
+    
+2.  **Backend (FastAPI)**:
+    -   Handles file processing, embedding, and LLM interaction.
+    -   Stateless design allows for horizontal scaling.
+    -   Running 2 Replicas.
+
+3.  **Kubernetes Resources**:
+    -   **Deployments**: Manage the pod replicas.
+    -   **Services**: Expose the frontend externally and the backend internally.
+    -   **Secrets**: Securely store the `GEMINI_API_KEY`.
+
 ## Project Structure
 - `backend/`: FastAPI application (Python).
 - `frontend/`: Vanilla JS/HTML/CSS interface.
