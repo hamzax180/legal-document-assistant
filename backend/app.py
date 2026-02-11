@@ -60,7 +60,14 @@ DOCS: Dict[str, Dict[str, Any]] = {}
 
 @app.on_event("startup")
 def startup():
-    init_db()
+    print(f"[INFO] VERCEL env var: {os.environ.get('VERCEL')}")
+    from database import DB_PATH
+    print(f"[INFO] DB_PATH: {DB_PATH}")
+    try:
+        init_db()
+        print("[INFO] Database initialized successfully")
+    except Exception as e:
+        print(f"[ERROR] Database initialization failed: {e}")
 
 
 # ================= EXCEPTION HANDLERS =================
@@ -331,7 +338,15 @@ async def upload_pdf(file: UploadFile = File(...)):
     doc_id = str(uuid.uuid4())
 
     # Persist to SQLite
-    save_document(doc_id, file.filename, pages, structured)
+    try:
+        save_document(doc_id, file.filename, pages, structured)
+        print(f"[INFO] Document saved to DB: {doc_id}")
+    except Exception as e:
+        print(f"[ERROR] Database save failed: {e}")
+        # We can continue without DB (stateless mode fallback) or raise
+        # For now, let's log and continue so the user sees the result
+        # raise HTTPException(500, f"Database error: {str(e)}")
+        pass
 
     # Cache in memory
     DOCS[doc_id] = {
