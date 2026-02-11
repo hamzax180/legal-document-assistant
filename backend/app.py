@@ -78,14 +78,14 @@ DOCS: Dict[str, Dict[str, Any]] = {}
 
 @app.on_event("startup")
 def startup():
-    print(f"[INFO] VERCEL env var: {os.environ.get('VERCEL')}")
+    print(f"[INFO] VERCEL env var: {os.environ.get('VERCEL')}", flush=True)
     from database import DB_PATH
-    print(f"[INFO] DB_PATH: {DB_PATH}")
+    print(f"[INFO] DB_PATH: {DB_PATH}", flush=True)
     try:
         init_db()
-        print("[INFO] Database initialized successfully")
+        print("[INFO] Database initialized successfully", flush=True)
     except Exception as e:
-        print(f"[ERROR] Database initialization failed: {e}")
+        print(f"[ERROR] Database initialization failed: {e}", flush=True)
 
 
 # ================= EXCEPTION HANDLERS =================
