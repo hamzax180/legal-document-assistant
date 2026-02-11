@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 PyMuPDF
-google-generativeai
-google-api-core
+google-genai
 sentence-transformers
 faiss-cpu
 numpy

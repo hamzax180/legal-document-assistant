@@ -702,3 +702,22 @@ def rag_qa(query, pages, index, history):
 ---
 **End of Report**
 
+---
+
+# Appendix C: UI and Feature Updates (February 2026)
+
+### C.1 User Interface Overhaul
+In February 2026, the application received a significant frontend upgrade to improve user experience and aesthetics.
+
+*   **Animated Background**: A dynamic, GPU-accelerated background with floating orbs was implemented using CSS3 transforms, replacing the static gradient.
+*   **Toast Notifications**: The intrusive `alert()` system was replaced with a non-blocking toast notification system for success, error, and info messages.
+*   **Visual Feedback**: Typing indicators ("bouncing dots") and loading spinners were added to provide immediate feedback during asynchronous AI operations.
+*   **Typography & Icons**: Formatting was standardized using "JetBrains Mono" for code and data, and emojis were replaced with professional SVG icons.
+*   **Glassmorphism**: Panels now utilize `backdrop-filter: blur()` to create a modern, layered look.
+
+### C.2 Persistence Layer
+*   **SQLite Integration**: The backend now utilizes a local SQLite database (`legal_docs.db`) to persist document metadata and chat history, allowing sessions to survive browser refreshes (though data is still ephemeral in the current containerized deployment without persistent volumes).
+
+### C.3 Accessibility
+*   **ARIA Attributes**: `aria-hidden` attributes were added to decorative elements.
+

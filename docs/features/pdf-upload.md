@@ -10,6 +10,7 @@ The system accepts PDF documents via a drag-and-drop interface or file selection
 4.  Text is chunked and indexed into a FAISS vector store.
 5.  A unique Document ID is returned for the session.
 
-## Constraints
-- Only text-based PDFs are supported (OCR for images is not implemented).
-- Files are stored in volatile memory (RAM) for privacy; restarting the server clears them.
+## Data Storage
+- **Metadata**: Document info and chat history stored in SQLite (`legal_docs.db`).
+- **Vectors**: Stored in FAISS index (reloaded on startup if implemented, currently in-memory).
+- **Privacy**: Data resides locally within the container. Deleting the container/volume wipes the data.

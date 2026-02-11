@@ -3,29 +3,41 @@ import json
 import uuid
 import time
 import random
+import traceback
 from typing import Dict, Any, List
 
 import fitz
 import numpy as np
 import faiss
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted
+from google import genai
 from sentence_transformers import SentenceTransformer
 
 from database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+
+
+# ================= CUSTOM EXCEPTIONS =================
+class RateLimitError(Exception):
+    """Raised when Gemini API rate limit is exhausted after retries."""
+    pass
+
+
+class GeminiError(Exception):
+    """Raised when the Gemini API returns a non-rate-limit error."""
+    pass
 
 
 # ================= CONFIG =================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set")
-genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("gemini-2.5-flash")
+client = genai.Client(api_key=GEMINI_API_KEY)
+MODEL_ID = "gemini-2.5-flash"
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
@@ -48,14 +60,63 @@ def startup():
     init_db()
 
 
+# ================= EXCEPTION HANDLERS =================
+@app.exception_handler(RateLimitError)
+async def rate_limit_handler(request: Request, exc: RateLimitError):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limit",
+            "detail": "The AI service is currently overloaded. Please wait a moment and try again.",
+            "retry_after": 10
+        }
+    )
+
+
+@app.exception_handler(GeminiError)
+async def gemini_error_handler(request: Request, exc: GeminiError):
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "ai_service_unavailable",
+            "detail": "The AI service encountered an error. Please try again shortly.",
+            "message": str(exc)
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_error_handler(request: Request, exc: Exception):
+    print(f"[ERROR] Unhandled exception: {traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_error",
+            "detail": "An unexpected server error occurred. Please try again."
+        }
+    )
+
+
 # ================= HELPERS =================
-def safe_generate(prompt: str):
+def safe_generate(prompt: str) -> str:
+    last_error = None
     for attempt in range(5):
         try:
-            return model.generate_content(prompt)
-        except ResourceExhausted:
-            time.sleep((2 ** attempt) + random.random())
-    raise RuntimeError("Gemini rate limit exceeded")
+            response = client.models.generate_content(
+                model=MODEL_ID,
+                contents=prompt
+            )
+            return response.text.strip()
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in err_str or "resourceexhausted" in err_str or "rate limit" in err_str or "quota" in err_str:
+                last_error = e
+                wait_time = (2 ** attempt) + random.random()
+                print(f"[WARN] Rate limited (attempt {attempt + 1}/5), retrying in {wait_time:.1f}s...")
+                time.sleep(wait_time)
+                continue
+            raise GeminiError(f"AI model error: {str(e)}")
+    raise RateLimitError(f"Rate limit exceeded after 5 retries. Last error: {last_error}")
 
 
 def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
@@ -72,7 +133,7 @@ Extract structured information from the text:
 
 
 def extract_structured_info(text: str):
-    raw = safe_generate(STRUCT_PROMPT + text).text.strip()
+    raw = safe_generate(STRUCT_PROMPT + text)
     try:
         return json.loads(raw)
     except:
@@ -137,7 +198,7 @@ Context:
 Question: {query}
 """
 
-    answer = safe_generate(prompt).text.strip()
+    answer = safe_generate(prompt)
     return answer, context
 
 
@@ -157,7 +218,7 @@ Context: {context[:1200]}
 Answer: {answer}
 """
 
-    raw = model.generate_content(prompt).text.strip()
+    raw = safe_generate(prompt)
     try:
         return json.loads(raw)
     except:
@@ -291,7 +352,7 @@ def ask_question(body: AskBody):
                 "helpfulness": None,
                 "completeness": None,
                 "relevance": None,
-                "reasoning": f"Evaluation failed safely: {str(e)}"
+                "reasoning": f"Evaluation failed: {str(e)}"
             }
 
     return {
@@ -326,7 +387,7 @@ Document Text:
 {doc['full_text'][:12000]}
 """
 
-    result = safe_generate(prompt).text.strip()
+    result = safe_generate(prompt)
     return {"summary": result}
 
 
@@ -348,7 +409,7 @@ Document Text:
 {doc['full_text'][:8000]}
 """
 
-    raw = safe_generate(prompt).text.strip()
+    raw = safe_generate(prompt)
     try:
         questions = json.loads(raw)
         if isinstance(questions, list):
