@@ -601,7 +601,7 @@ We implemented a novel "LLM-as-a-Judge" mechanism. For every answer generated, a
 3.  **Configure Environment**:
     Create a `.env` file in `backend/` and add:
     ```
-    GEMINI_API_KEY=AIzaSy...
+    GEMINI_API_KEY=YOUR_API_KEY_HERE
     ```
 
 4.  **Run the Application**:

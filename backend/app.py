@@ -20,7 +20,9 @@ from database import init_db, save_document, get_document, list_documents, delet
 
 
 # ================= CONFIG =================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyAQdNYx6b7ewZY7Zo-nLoo3u4MA6H0HRlk"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable not set")
 genai.configure(api_key=GEMINI_API_KEY)
 
 model = genai.GenerativeModel("gemini-2.5-flash")
