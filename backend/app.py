@@ -1,8 +1,6 @@
 import os
 import sys
 
-print("[INFO] Loading backend/app.py...", flush=True)  # Debug print
-
 import json
 import uuid
 import time
@@ -93,17 +91,12 @@ DOCS: Dict[str, Dict[str, Any]] = {}
 
 @app.on_event("startup")
 def startup():
-    print(f"[INFO] VERCEL env var: {os.environ.get('VERCEL')}", flush=True)
     from database import DB_PATH
-    if DB_PATH:
-        print(f"[INFO] DB_PATH: {DB_PATH}", flush=True)
-    else:
-        print("[INFO] Running on Vercel (Postgres)", flush=True)
     try:
         init_db()
-        print("[INFO] Database initialized successfully", flush=True)
+        print("[INFO] Database initialized successfully")
     except Exception as e:
-        print(f"[ERROR] Database initialization failed: {e}", flush=True)
+        print(f"[ERROR] Database initialization failed: {e}")
 
 
 # ================= EXCEPTION HANDLERS =================
