@@ -11,3 +11,9 @@ coverage
 npm-debug.log
 backend/venv
 frontend/node_modules
+
+# Env and Temporary Files
+.env.local
+CRITICAL_ERROR.md
+ERROR_REPORT.md
+temp_payload.json
