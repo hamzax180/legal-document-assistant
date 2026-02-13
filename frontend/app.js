@@ -91,6 +91,7 @@ const suggestBox = document.getElementById("suggestBox");
 
 const sidebarToggle = document.getElementById("sidebarToggle");
 const sidebar = document.getElementById("sidebar");
+const sidebarOverlay = document.getElementById("sidebarOverlay");
 
 // Empty state refs
 const summaryEmpty = document.getElementById("summaryEmpty");
@@ -122,9 +123,20 @@ document.addEventListener("keydown", (e) => {
 
 
 // ===== SIDEBAR TOGGLE =====
-sidebarToggle.addEventListener("click", () => {
+function toggleSidebar() {
   sidebar.classList.toggle("collapsed");
   sidebar.classList.toggle("mobile-open");
+  sidebarOverlay.classList.toggle("active");
+}
+
+sidebarToggle.addEventListener("click", toggleSidebar);
+
+document.getElementById("sidebarCloseMobile")?.addEventListener("click", toggleSidebar);
+
+sidebarOverlay.addEventListener("click", () => {
+  if (sidebar.classList.contains("mobile-open")) {
+    toggleSidebar();
+  }
 });
 
 
