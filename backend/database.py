@@ -16,6 +16,11 @@ if IS_VERCEL:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     DB_URL = os.environ.get("POSTGRES_URL")
+    if DB_URL:
+        print(f"[INFO] DB_URL found. Starts with: {DB_URL[:15]}...", flush=True)
+    else:
+        print("[ERROR] DB_URL (POSTGRES_URL) is None or empty!", flush=True)
+
     DB_PATH = None
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "legal_docs.db")
