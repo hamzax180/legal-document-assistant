@@ -1135,7 +1135,8 @@ footer a:hover {
    RESPONSIVE
    ================================================================ */
 .sidebar-close-mobile,
-.sidebar-overlay {
+.sidebar-overlay,
+.mobile-view-toggle {
   display: none;
 }
 
@@ -1152,6 +1153,16 @@ footer a:hover {
     padding-right: 340px;
     /* 320 + 20 */
   }
+}
+
+/* On mobile, we use a utility class to toggle views if needed, 
+   but for now we are using a JS toggle approach. */
+.main-wrapper.show-info .panel-chat {
+  display: none;
+}
+
+.main-wrapper.show-info .panel-info {
+  display: flex !important;
 }
 
 @media (max-width: 768px) {
@@ -1216,17 +1227,56 @@ footer a:hover {
   /* When mobile panel-chat is top, show tabs on bottom or stacking? */
   /* Actually standard mobile stack is usually fine: Chat first, then Info? */
 
+  .mobile-view-toggle {
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    margin-right: 10px;
+  }
+
+  .view-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    border-radius: var(--radius-xs);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .view-btn.active {
+    background: rgba(110, 231, 255, 0.1);
+    color: var(--accent);
+  }
+
+  /* Stack panels normally, but we will control visibility with JS/CSS classes */
+  .content-panels {
+    flex-direction: column;
+    height: 100%;
+    /* Ensure full height */
+  }
+
   .panel-chat {
     flex: 1;
     border-right: none;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: none;
+    display: flex;
+    /* Default visible */
   }
 
   .panel-info {
-    flex: none;
+    flex: 1;
+    /* Take full space when visible */
     max-width: 100%;
-    height: auto;
-    max-height: 40vh;
+    height: 100%;
+    max-height: none;
+    border-left: none;
+    display: none;
+    /* Hidden by default on mobile */
   }
 
   .top-bar-title {

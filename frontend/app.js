@@ -139,6 +139,25 @@ sidebarOverlay.addEventListener("click", () => {
   }
 });
 
+// ===== MOBILE VIEW TOGGLE =====
+const viewChatBtn = document.getElementById("viewChat");
+const viewInfoBtn = document.getElementById("viewInfo");
+const mainWrapper = document.querySelector(".main-wrapper");
+
+if (viewChatBtn && viewInfoBtn) {
+  viewChatBtn.addEventListener("click", () => {
+    mainWrapper.classList.remove("show-info");
+    viewChatBtn.classList.add("active");
+    viewInfoBtn.classList.remove("active");
+  });
+
+  viewInfoBtn.addEventListener("click", () => {
+    mainWrapper.classList.add("show-info");
+    viewInfoBtn.classList.add("active");
+    viewChatBtn.classList.remove("active");
+  });
+}
+
 
 // ===== PANEL TABS =====
 document.querySelectorAll(".panel-tab").forEach(tab => {
