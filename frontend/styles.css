@@ -35,7 +35,8 @@
 }
 
 body {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-main);
   color: var(--text-main);
@@ -68,9 +69,10 @@ body {
    ================================================================ */
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100dvh;
   position: relative;
   z-index: 1;
+  overflow: hidden;
 }
 
 
@@ -275,7 +277,7 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -289,15 +291,14 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  /* Reduced gap to fit sidebar toggle better */
   padding: 0 24px;
   border-bottom: 1px solid var(--border-soft);
-  background: rgba(2, 6, 23, 0.6);
+  background: rgba(2, 6, 23, 0.8);
   backdrop-filter: var(--blur);
   position: relative;
-  /* Enable absolute positioning for title */
   justify-content: space-between;
-  /* Sidebar toggle and status pushed to sides */
+  flex-shrink: 0;
+  z-index: 100;
 }
 
 .sidebar-toggle {
@@ -1247,7 +1248,8 @@ footer a:hover {
   .content-panels {
     flex-direction: column;
     flex: 1;
-    height: auto;
+    height: 0;
+    /* Important for flex-grow to work without expanding */
     position: relative;
     overflow: hidden;
   }
@@ -1257,8 +1259,8 @@ footer a:hover {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding-bottom: 80px;
-    /* Space for fixed input */
+    /* padding-bottom removed as input is now sticky */
+    overflow: hidden;
   }
 
   .panel-info {
@@ -1283,6 +1285,8 @@ footer a:hover {
     min-height: 56px;
     gap: 6px;
     justify-content: flex-start;
+    background: #0b0f19 !important;
+    /* Solid background on mobile */
   }
 
   .sidebar-toggle {
