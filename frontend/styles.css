@@ -120,10 +120,12 @@ body {
   display: block;
   font-size: 1.1rem;
   font-weight: 800;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  animation: shine 3s linear infinite;
 }
 
 .brand-tagline {
@@ -335,15 +337,15 @@ body {
 
 .top-bar-title h1 {
   font-size: 1.6rem;
-  /* Increased size significantly */
   font-weight: 800;
-  /* Bolder */
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   white-space: nowrap;
   letter-spacing: -0.02em;
+  animation: shine 4s linear infinite;
 }
 
 .top-bar-status {
@@ -1044,6 +1046,12 @@ footer a:hover {
   }
 }
 
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
 
 
 /* ================================================================
@@ -1348,8 +1356,13 @@ footer a:hover {
     overflow: visible;
     display: block;
     font-weight: 800;
-    color: var(--accent);
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
     letter-spacing: -0.01em;
+    animation: shine 3s linear infinite;
   }
 
   .top-bar-title h1 svg {
