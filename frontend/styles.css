@@ -1245,8 +1245,10 @@ footer a:hover {
 
   .content-panels {
     flex-direction: column;
-    height: calc(100vh - var(--topbar-height));
+    flex: 1;
+    height: auto;
     position: relative;
+    overflow: hidden;
   }
 
   .panel-chat {
@@ -1265,6 +1267,9 @@ footer a:hover {
     background: var(--bg-main);
     z-index: 10;
     padding-bottom: 20px;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
   }
 
   .tab-content {
@@ -1329,13 +1334,13 @@ footer a:hover {
   }
 
   .top-bar-title h1 {
-    font-size: 0.95rem;
+    font-size: 0.82rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-weight: 800;
     color: var(--accent);
     letter-spacing: -0.01em;
@@ -1343,8 +1348,8 @@ footer a:hover {
 
   .top-bar-title h1 svg {
     flex-shrink: 0;
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
   }
 
   .panel-header-bar {
@@ -1377,13 +1382,13 @@ footer a:hover {
   }
 
   .chat-input-row {
-    position: fixed;
+    position: sticky;
     bottom: 0;
     left: 0;
     right: 0;
     background: rgba(15, 23, 42, 0.95);
     backdrop-filter: blur(12px);
-    padding: 10px 16px env(safe-area-inset-bottom, 15px);
+    padding: 10px 16px env(safe-area-inset-bottom, 12px);
     border-top: 1px solid var(--border-soft);
     z-index: 100;
     gap: 12px;
@@ -1598,14 +1603,20 @@ footer a:hover {
   }
 
   footer {
-    padding: 15px 10px !important;
+    padding: 12px 10px !important;
     text-align: center !important;
-    background: rgba(11, 15, 25, 0.95);
+    background: rgba(11, 15, 25, 0.98);
     border-top: 1px solid var(--border-soft);
+    position: relative;
+    width: 100%;
+    z-index: 50;
+    margin-top: auto;
   }
 
   footer small {
     justify-content: center;
-    line-height: 1.5;
+    line-height: 1.4;
+    display: flex;
+    width: 100%;
   }
 }
