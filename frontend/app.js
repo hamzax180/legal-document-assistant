@@ -102,6 +102,11 @@ const suggestEmpty = document.getElementById("suggestEmpty");
 // ===== UPLOAD MODAL =====
 function openUploadModal() {
   uploadOverlay.classList.add("show");
+  // Close sidebar if open on mobile
+  if (window.innerWidth <= 768) {
+    sidebar.classList.remove("mobile-open");
+    sidebarOverlay.classList.remove("active");
+  }
 }
 
 function closeUploadModal() {
@@ -124,9 +129,15 @@ document.addEventListener("keydown", (e) => {
 
 // ===== SIDEBAR TOGGLE =====
 function toggleSidebar() {
-  sidebar.classList.toggle("collapsed");
-  sidebar.classList.toggle("mobile-open");
-  sidebarOverlay.classList.toggle("active");
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    sidebar.classList.toggle("mobile-open");
+    sidebarOverlay.classList.toggle("active");
+    // Ensure collapsed class doesn't interfere with mobile-open
+    sidebar.classList.remove("collapsed");
+  } else {
+    sidebar.classList.toggle("collapsed");
+  }
 }
 
 sidebarToggle.addEventListener("click", toggleSidebar);
@@ -323,8 +334,10 @@ async function loadDocument(id) {
     fetchSuggestions(docId);
     updateEmptyStates();
 
+    // Ensure sidebar closes on mobile
     if (window.innerWidth <= 768) {
       sidebar.classList.remove("mobile-open");
+      sidebarOverlay.classList.remove("active");
     }
 
   } catch (err) {
