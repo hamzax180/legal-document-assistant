@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     display_name TEXT,
+    security_question TEXT,
+    security_answer_hash TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -94,6 +96,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     display_name TEXT,
+    security_question TEXT,
+    security_answer_hash TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -152,6 +156,34 @@ def _migrate_add_user_id(conn):
         print(f"[WARN] Migration check for user_id: {e}", flush=True)
 
 
+def _migrate_add_security_cols(conn):
+    """Add security_question/answer columns to users table if not exist."""
+    print("[INFO] Checking security columns migration...", flush=True)
+    try:
+        cursor = conn.cursor()
+        if IS_VERCEL:
+            # Check if columns exist
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'security_question'
+            """)
+            if not cursor.fetchone():
+                print("[INFO] Adding security columns to Postgres...", flush=True)
+                cursor.execute("ALTER TABLE users ADD COLUMN security_question TEXT")
+                cursor.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT")
+                conn.commit()
+        else:
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            if "security_question" not in columns:
+                print("[INFO] Adding security columns to SQLite...", flush=True)
+                cursor.execute("ALTER TABLE users ADD COLUMN security_question TEXT")
+                cursor.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT")
+                conn.commit()
+    except Exception as e:
+        print(f"[WARN] Migration check for security cols: {e}", flush=True)
+
+
 def init_db():
     try:
         conn = get_conn()
@@ -162,8 +194,11 @@ def init_db():
         else:
             conn.executescript(SCHEMA_SQLITE)
             conn.commit()
-        # Run migration for existing databases
+        
+        # Run migrations
         _migrate_add_user_id(conn)
+        _migrate_add_security_cols(conn)
+        
         conn.close()
     except Exception as e:
         print(f"[ERROR] Database init failed: {e}")
@@ -171,7 +206,8 @@ def init_db():
 
 # ======================== USER FUNCTIONS ========================
 
-def create_user(email: str, password_hash: str, display_name: str = None) -> dict:
+def create_user(email: str, password_hash: str, display_name: str = None, 
+                security_question: str = None, security_answer_hash: str = None) -> dict:
     """Create a new user and return the user dict."""
     conn = get_conn()
     p = get_placeholder()
@@ -179,12 +215,23 @@ def create_user(email: str, password_hash: str, display_name: str = None) -> dic
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"INSERT INTO users (id, email, password_hash, display_name) "
-            f"VALUES ({p}, {p}, {p}, {p})",
-            (user_id, email.lower().strip(), password_hash, display_name or email.split("@")[0])
+            f"INSERT INTO users (id, email, password_hash, display_name, security_question, security_answer_hash) "
+            f"VALUES ({p}, {p}, {p}, {p}, {p}, {p})",
+            (
+                user_id, 
+                email.lower().strip(), 
+                password_hash, 
+                display_name or email.split("@")[0],
+                security_question,
+                security_answer_hash
+            )
         )
         conn.commit()
-        return {"id": user_id, "email": email.lower().strip(), "display_name": display_name or email.split("@")[0]}
+        return {
+            "id": user_id, 
+            "email": email.lower().strip(), 
+            "display_name": display_name or email.split("@")[0]
+        }
     except Exception as e:
         conn.rollback()
         raise e
@@ -218,6 +265,34 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
         if row:
             return dict(row)
         return None
+    finally:
+        conn.close()
+
+
+def get_user_security_question(email: str) -> Optional[str]:
+    """Get the security question for a user by email."""
+    user = get_user_by_email(email)
+    if user:
+        return user.get("security_question")
+    return None
+
+
+def update_password(email: str, new_password_hash: str) -> bool:
+    """Update a user's password."""
+    conn = get_conn()
+    p = get_placeholder()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE users SET password_hash = {p} WHERE email = {p}",
+            (new_password_hash, email.lower().strip())
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] update_password failed: {e}")
+        return False
     finally:
         conn.close()
 

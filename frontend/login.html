@@ -56,7 +56,7 @@
             </div>
 
             <!-- Login Form -->
-            <form class="auth-form" id="loginForm" autocomplete="on">
+            <form class="auth-form" id="loginForm" autocomplete="on" novalidate>
                 <div class="auth-input-group">
                     <label for="loginEmail">Email address</label>
                     <div class="auth-input-wrapper">
@@ -80,6 +80,14 @@
                         <input type="password" id="loginPassword" placeholder="Enter your password" required
                             autocomplete="current-password" />
                     </div>
+                    <div class="auth-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMe">
+                            Remember me
+                        </label>
+                        <a href="#" id="forgotPasswordLink"
+                            style="font-size: 0.8rem; color: var(--accent); text-decoration: none;">Forgot Password?</a>
+                    </div>
                 </div>
                 <button type="submit" class="auth-submit-btn" id="loginSubmit">
                     <span class="auth-btn-text">Sign In</span>
@@ -88,7 +96,7 @@
             </form>
 
             <!-- Register Form (hidden initially) -->
-            <form class="auth-form" id="registerForm" style="display:none;" autocomplete="on">
+            <form class="auth-form" id="registerForm" style="display:none;" autocomplete="on" novalidate>
                 <div class="auth-input-group">
                     <label for="registerName">Display name</label>
                     <div class="auth-input-wrapper">
@@ -124,11 +132,119 @@
                             minlength="6" autocomplete="new-password" />
                     </div>
                 </div>
+
+                <!-- Security Question -->
+                <div class="auth-input-group">
+                    <label for="registerQuestion">Security Question</label>
+                    <div class="auth-input-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="auth-input-icon">
+                            <path d="M9 14c0-4 4-3 4-6 0-1.5-1-2.5-2.5-2.5S8 7 8 8" stroke="currentColor"
+                                stroke-width="1.3" stroke-linecap="round" />
+                            <circle cx="9" cy="16" r="1" fill="currentColor" />
+                        </svg>
+                        <select id="registerQuestion" required class="auth-input-select">
+                            <option value="" disabled selected>Select a secret question...</option>
+                            <option value="What is your mother's maiden name?">What is your mother's maiden name?
+                            </option>
+                            <option value="What was the name of your first pet?">What was the name of your first pet?
+                            </option>
+                            <option value="What city were you born in?">What city were you born in?</option>
+                            <option value="What is your favorite book?">What is your favorite book?</option>
+                            <option value="What is the name of your elementary school?">What is the name of your
+                                elementary school?</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="auth-input-group">
+                    <label for="registerAnswer">Security Answer</label>
+                    <div class="auth-input-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="auth-input-icon">
+                            <rect x="3" y="8" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.3" />
+                            <path d="M6 8V6a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3"
+                                stroke-linecap="round" />
+                            <circle cx="9" cy="12" r="1" fill="currentColor" />
+                        </svg>
+                        <input type="text" id="registerAnswer" placeholder="Your secret answer" required />
+                    </div>
+                </div>
+
                 <button type="submit" class="auth-submit-btn" id="registerSubmit">
                     <span class="auth-btn-text">Create Account</span>
                     <div class="auth-btn-spinner" style="display:none;"></div>
                 </button>
             </form>
+
+            <!-- Forgot Password View (Hidden) -->
+            <div id="forgotPasswordView" style="display:none;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 class="auth-title" style="font-size: 1.5rem;">Reset Password</h2>
+                    <p class="auth-subtitle">Recover access to your account</p>
+                </div>
+
+                <!-- Step 1: Email -->
+                <form class="auth-form" id="forgotStep1Form" novalidate>
+                    <div class="auth-input-group">
+                        <label for="forgotEmail">Enter your email</label>
+                        <div class="auth-input-wrapper">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="auth-input-icon">
+                                <rect x="2" y="4" width="14" height="10" rx="2" stroke="currentColor"
+                                    stroke-width="1.3" />
+                                <path d="M2 6l7 4 7-4" stroke="currentColor" stroke-width="1.3"
+                                    stroke-linecap="round" />
+                            </svg>
+                            <input type="email" id="forgotEmail" placeholder="you@example.com" required />
+                        </div>
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="forgotStep1Submit">
+                        <span class="auth-btn-text">Next</span>
+                        <div class="auth-btn-spinner" style="display:none;"></div>
+                    </button>
+                    <button type="button" class="auth-toggle-btn" id="backToLogin"
+                        style="width:100%; text-align:center; margin-top:10px;">Back to Login</button>
+                </form>
+
+                <!-- Step 2: Secret Question -->
+                <form class="auth-form" id="forgotStep2Form" style="display:none;" novalidate>
+                    <div class="auth-input-group">
+                        <label>Security Question</label>
+                        <div id="securityQuestionDisplay"
+                            style="padding: 12px; background: rgba(110, 231, 255, 0.08); border-radius: 8px; color: var(--text-main); font-size: 0.95rem; border: 1px solid rgba(110, 231, 255, 0.2);">
+                            Loading...
+                        </div>
+                    </div>
+                    <div class="auth-input-group">
+                        <label for="forgotAnswer">Your Answer</label>
+                        <div class="auth-input-wrapper">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="auth-input-icon">
+                                <path d="M14 9V6a5 5 0 00-10 0v3" stroke="currentColor" stroke-width="1.3"
+                                    stroke-linecap="round" />
+                                <rect x="5" y="9" width="8" height="6" rx="1" stroke="currentColor"
+                                    stroke-width="1.3" />
+                            </svg>
+                            <input type="text" id="forgotAnswer" placeholder="Type your answer" required />
+                        </div>
+                    </div>
+                    <div class="auth-input-group">
+                        <label for="newPassword">New Password</label>
+                        <div class="auth-input-wrapper">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="auth-input-icon">
+                                <rect x="3" y="8" width="12" height="8" rx="2" stroke="currentColor"
+                                    stroke-width="1.3" />
+                                <path d="M6 8V6a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3"
+                                    stroke-linecap="round" />
+                                <circle cx="9" cy="12" r="1" fill="currentColor" />
+                            </svg>
+                            <input type="password" id="newPassword" placeholder="New password" required minlength="6" />
+                        </div>
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="forgotStep2Submit">
+                        <span class="auth-btn-text">Reset Password</span>
+                        <div class="auth-btn-spinner" style="display:none;"></div>
+                    </button>
+                    <button type="button" class="auth-toggle-btn" id="cancelReset"
+                        style="width:100%; text-align:center; margin-top:10px;">Cancel</button>
+                </form>
+            </div>
 
             <!-- Error Message -->
             <div class="auth-error" id="authError" style="display:none;"></div>
@@ -136,7 +252,7 @@
             <!-- Footer -->
             <div class="auth-footer">
                 <small>Created by <a href="https://www.linkedin.com/in/hamzahdal/" target="_blank"
-                        rel="noopener noreferrer">Hamza</a> · Powered by Gemini AI</small>
+                        rel="noopener noreferrer">Hamza</a> · Powered by Gemini</small>
             </div>
         </div>
     </div>
@@ -145,7 +261,7 @@
         const API_BASE = window.location.port === "3000" ? "http://127.0.0.1:8000" : "/api";
 
         // If already logged in, redirect
-        if (localStorage.getItem("legalai_token")) {
+        if (localStorage.getItem("legalai_token") || sessionStorage.getItem("legalai_token")) {
             window.location.href = "index.html";
         }
 
@@ -163,9 +279,14 @@
             const toast = document.createElement("div");
             toast.className = `toast toast-${type}`;
             const icons = { success: "✓", error: "✕", info: "ℹ", warning: "⚠" };
-            toast.innerHTML = `<span style="font-size: 1.1rem;">${icons[type] || "ℹ"}</span> ${message}`;
+            toast.innerHTML = `<div class="toast-icon">${icons[type] || "ℹ"}</div> <span>${message}</span>`;
             container.appendChild(toast);
-            setTimeout(() => toast.remove(), duration);
+
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add("toast-exiting");
+                toast.addEventListener("animationend", () => toast.remove());
+            }, duration);
         }
 
         function showError(msg) {
@@ -194,11 +315,28 @@
         });
 
 
+        // Helper to safely stringify error details
+        function getErrorMessage(data, fallback) {
+            if (!data) return fallback;
+            if (typeof data.detail === "string") return data.detail;
+            if (Array.isArray(data.detail)) {
+                // Pydantic validation error or multiple errors
+                return data.detail.map(e => {
+                    const msg = e.msg || "Invalid input";
+                    const loc = e.loc ? e.loc[e.loc.length - 1] : "";
+                    return loc ? `${loc}: ${msg}` : msg;
+                }).join(", ");
+            }
+            if (typeof data.detail === "object") return JSON.stringify(data.detail);
+            return data.message || fallback;
+        }
+
         // ===== LOGIN =====
         loginForm.addEventListener("submit", async (e) => {
             e.preventDefault();
             const email = document.getElementById("loginEmail").value.trim();
             const password = document.getElementById("loginPassword").value;
+            const rememberMe = document.getElementById("rememberMe").checked;
             const btn = document.getElementById("loginSubmit");
 
             if (!email || !password) return showError("Please fill in all fields");
@@ -214,14 +352,23 @@
                     body: JSON.stringify({ email, password })
                 });
 
+                const data = await res.json().catch(() => ({}));
+
                 if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.detail || "Login failed");
+                    throw new Error(getErrorMessage(data, "Login failed"));
                 }
 
-                const data = await res.json();
-                localStorage.setItem("legalai_token", data.token);
-                localStorage.setItem("legalai_user", JSON.stringify(data.user));
+                if (rememberMe) {
+                    localStorage.setItem("legalai_token", data.token);
+                    localStorage.setItem("legalai_user", JSON.stringify(data.user));
+                    sessionStorage.removeItem("legalai_token");
+                    sessionStorage.removeItem("legalai_user");
+                } else {
+                    sessionStorage.setItem("legalai_token", data.token);
+                    sessionStorage.setItem("legalai_user", JSON.stringify(data.user));
+                    localStorage.removeItem("legalai_token");
+                    localStorage.removeItem("legalai_user");
+                }
                 showToast("Welcome back! Redirecting...", "success");
                 setTimeout(() => window.location.href = "index.html", 600);
 
@@ -233,16 +380,141 @@
             }
         });
 
+        // ===== FORGOT PASSWORD =====
+        const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+        const forgotPasswordView = document.getElementById("forgotPasswordView");
+        const backToLoginBtn = document.getElementById("backToLogin");
+        const cancelResetBtn = document.getElementById("cancelReset");
+        const authToggleContainer = document.getElementById("authToggle");
+        const forgotStep1Form = document.getElementById("forgotStep1Form");
+        const forgotStep2Form = document.getElementById("forgotStep2Form");
+
+        function closeForgotView() {
+            forgotPasswordView.style.display = "none";
+            authToggleContainer.style.display = "flex";
+            loginToggle.click(); // Switch back to login view logic
+            authError.style.display = "none";
+        }
+
+        if (forgotPasswordLink) {
+            forgotPasswordLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                authError.style.display = "none";
+                loginForm.style.display = "none";
+                registerForm.style.display = "none";
+                authToggleContainer.style.display = "none";
+                forgotPasswordView.style.display = "block";
+
+                forgotStep1Form.style.display = "flex";
+                forgotStep2Form.style.display = "none";
+                document.getElementById("forgotEmail").value = "";
+                document.getElementById("forgotAnswer").value = "";
+                document.getElementById("newPassword").value = "";
+            });
+        }
+
+        if (backToLoginBtn) backToLoginBtn.addEventListener("click", closeForgotView);
+        if (cancelResetBtn) cancelResetBtn.addEventListener("click", closeForgotView);
+
+        // Forgot Step 1
+        if (forgotStep1Form) {
+            forgotStep1Form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const email = document.getElementById("forgotEmail").value.trim();
+                const btn = document.getElementById("forgotStep1Submit");
+
+                if (!email) return showError("Please enter your email");
+
+                authError.style.display = "none";
+                btn.querySelector(".auth-btn-text").style.display = "none";
+                btn.querySelector(".auth-btn-spinner").style.display = "block";
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch(`${API_BASE}/auth/question`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(getErrorMessage(data, "Email not found"));
+
+                    document.getElementById("securityQuestionDisplay").textContent = data.question;
+                    forgotStep1Form.style.display = "none";
+                    forgotStep2Form.style.display = "flex";
+
+                    // Reset button
+                    btn.querySelector(".auth-btn-text").style.display = "inline";
+                    btn.querySelector(".auth-btn-spinner").style.display = "none";
+                    btn.disabled = false;
+
+                } catch (err) {
+                    showError(err.message);
+                    btn.querySelector(".auth-btn-text").style.display = "inline";
+                    btn.querySelector(".auth-btn-spinner").style.display = "none";
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // Forgot Step 2
+        if (forgotStep2Form) {
+            forgotStep2Form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const email = document.getElementById("forgotEmail").value.trim();
+                const answer = document.getElementById("forgotAnswer").value.trim();
+                const newPassword = document.getElementById("newPassword").value;
+                const btn = document.getElementById("forgotStep2Submit");
+
+                if (!answer || !newPassword) return showError("Please fill all fields");
+                if (newPassword.length < 6) return showError("Password must be at least 6 characters");
+
+                authError.style.display = "none";
+                btn.querySelector(".auth-btn-text").style.display = "none";
+                btn.querySelector(".auth-btn-spinner").style.display = "block";
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            email,
+                            security_answer: answer,
+                            new_password: newPassword
+                        })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(getErrorMessage(data, "Failed to reset password"));
+
+                    showToast("Password Reset! Logging in...", "success");
+                    setTimeout(() => window.location.reload(), 1500);
+
+                } catch (err) {
+                    showError(err.message);
+                    btn.querySelector(".auth-btn-text").style.display = "inline";
+                    btn.querySelector(".auth-btn-spinner").style.display = "none";
+                    btn.disabled = false;
+                }
+            });
+        }
+
         // ===== REGISTER =====
         registerForm.addEventListener("submit", async (e) => {
             e.preventDefault();
             const email = document.getElementById("registerEmail").value.trim();
             const password = document.getElementById("registerPassword").value;
             const display_name = document.getElementById("registerName").value.trim() || null;
+            const question_val = document.getElementById("registerQuestion").value;
+            const answer_val = document.getElementById("registerAnswer").value.trim();
             const btn = document.getElementById("registerSubmit");
 
             if (!email || !password) return showError("Please fill in all required fields");
             if (password.length < 6) return showError("Password must be at least 6 characters");
+            if (!question_val) return showError("Please select a security question");
+            if (!answer_val) return showError("Please answer the security question");
 
             btn.querySelector(".auth-btn-text").style.display = "none";
             btn.querySelector(".auth-btn-spinner").style.display = "block";
@@ -252,17 +524,25 @@
                 const res = await fetch(`${API_BASE}/register`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password, display_name })
+                    body: JSON.stringify({
+                        email,
+                        password,
+                        display_name,
+                        security_question: question_val,
+                        security_answer: answer_val
+                    })
                 });
 
+                const data = await res.json().catch(() => ({}));
+
                 if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.detail || "Registration failed");
+                    throw new Error(getErrorMessage(data, "Registration failed"));
                 }
 
-                const data = await res.json();
-                localStorage.setItem("legalai_token", data.token);
-                localStorage.setItem("legalai_user", JSON.stringify(data.user));
+                sessionStorage.setItem("legalai_token", data.token);
+                sessionStorage.setItem("legalai_user", JSON.stringify(data.user));
+                localStorage.removeItem("legalai_token");
+                localStorage.removeItem("legalai_user");
                 showToast("Account created! Redirecting...", "success");
                 setTimeout(() => window.location.href = "index.html", 600);
 

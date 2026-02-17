@@ -1,12 +1,12 @@
 const API_BASE = window.location.port === "3000" ? "http://127.0.0.1:8000" : "/api";
 
 // ===== AUTH STATE =====
-let authToken = localStorage.getItem("legalai_token");
-let currentUser = JSON.parse(localStorage.getItem("legalai_user") || "null");
+let authToken = localStorage.getItem("legalai_token") || sessionStorage.getItem("legalai_token");
+let currentUser = JSON.parse(localStorage.getItem("legalai_user") || sessionStorage.getItem("legalai_user") || "null");
 
 function requireAuth() {
   if (!authToken) {
-    window.location.href = "login.html";
+    window.location.href = "/login";
     return false;
   }
   return true;
@@ -28,7 +28,9 @@ function getAuthHeadersRaw() {
 function logout() {
   localStorage.removeItem("legalai_token");
   localStorage.removeItem("legalai_user");
-  window.location.href = "login.html";
+  sessionStorage.removeItem("legalai_token");
+  sessionStorage.removeItem("legalai_user");
+  window.location.href = "/login";
 }
 
 // Validate token on load
@@ -45,7 +47,14 @@ async function validateToken() {
     }
     const data = await res.json();
     currentUser = data;
-    localStorage.setItem("legalai_user", JSON.stringify(data));
+
+    // Update whichever storage is being used
+    if (localStorage.getItem("legalai_token")) {
+      localStorage.setItem("legalai_user", JSON.stringify(data));
+    } else {
+      sessionStorage.setItem("legalai_user", JSON.stringify(data));
+    }
+
     updateUserUI();
   } catch {
     // If backend is down, still allow cached user data
@@ -88,9 +97,29 @@ function initApp() {
   let selectedFile = null;
 
 
+  // Initialize User UI
+  updateUserUI();
+  validateToken();
+
+  // Logout Listener
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", logout);
+  }
+
+  // ===== TOAST NOTIFICATIONS =====
   // ===== TOAST NOTIFICATIONS =====
   function showToast(message, type = "info", duration = 4500) {
-    const container = document.getElementById("toastContainer");
+    let container = document.getElementById("toastContainer");
+
+    // Create container if it doesn't exist (e.g. in index.html)
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toastContainer";
+      container.className = "toast-container";
+      document.body.appendChild(container);
+    }
+
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
 
@@ -101,11 +130,12 @@ function initApp() {
       warning: "⚠"
     };
 
-    toast.innerHTML = `<span style="font-size: 1.1rem;">${icons[type] || "ℹ"}</span> ${message}`;
+    toast.innerHTML = `<div class="toast-icon">${icons[type] || "ℹ"}</div> <span>${message}</span>`;
     container.appendChild(toast);
 
     setTimeout(() => {
-      toast.remove();
+      toast.classList.add("toast-exiting");
+      toast.addEventListener("animationend", () => toast.remove());
     }, duration);
   }
 
@@ -165,7 +195,255 @@ function initApp() {
   const miniUploadZone = document.getElementById("miniUploadZone");
   const uploadProgress = document.getElementById("uploadProgress");
 
-  const chatBox = document.getElementById("chatBox");
+  // ================= AUTHENTICATION =================
+
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  const authError = document.getElementById("authError");
+  const loginToggle = document.getElementById("loginToggle");
+  const registerToggle = document.getElementById("registerToggle");
+  const toggleSlider = document.getElementById("toggleSlider");
+
+  // New Elements
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+  const forgotPasswordView = document.getElementById("forgotPasswordView");
+  const backToLoginBtn = document.getElementById("backToLogin");
+  const cancelResetBtn = document.getElementById("cancelReset");
+  const authToggleContainer = document.getElementById("authToggle");
+
+  // Forgot Password Forms
+  const forgotStep1Form = document.getElementById("forgotStep1Form");
+  const forgotStep2Form = document.getElementById("forgotStep2Form");
+
+  let isLoginMode = true;
+
+  function switchAuthMode(mode) {
+    if (forgotPasswordView.style.display !== "none") {
+      forgotPasswordView.style.display = "none";
+      authToggleContainer.style.display = "flex";
+    }
+
+    hideError();
+    isLoginMode = mode === "login";
+
+    if (isLoginMode) {
+      loginToggle.classList.add("active");
+      registerToggle.classList.remove("active");
+      toggleSlider.style.transform = "translateX(0)";
+      loginForm.style.display = "flex";
+      registerForm.style.display = "none";
+    } else {
+      registerToggle.classList.add("active");
+      loginToggle.classList.remove("active");
+      toggleSlider.style.transform = "translateX(100%)";
+      loginForm.style.display = "none";
+      registerForm.style.display = "flex";
+    }
+  }
+
+  // Helper to safely stringify error details
+  function getErrorMessage(data, fallback) {
+    if (!data) return fallback;
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) {
+      // Pydantic validation error
+      return data.detail.map(e => `${e.loc[1]}: ${e.msg}`).join(", ");
+    }
+    if (typeof data.detail === "object") return JSON.stringify(data.detail);
+    return data.message || fallback;
+  }
+
+  // Only add listeners if elements exist (simple check for login page)
+  // We wrap this in a function to be called after DOM load if needed, 
+  // though script is at bottom of body so it should be fine.
+  if (loginToggle) {
+    console.log("Initializing Auth Listeners..."); // Debug
+
+    loginToggle.addEventListener("click", () => switchAuthMode("login"));
+    registerToggle.addEventListener("click", () => switchAuthMode("register"));
+
+    if (forgotPasswordLink) {
+      forgotPasswordLink.addEventListener("click", (e) => {
+        console.log("Forgot Password Clicked"); // Debug
+        e.preventDefault();
+        hideError();
+        loginForm.style.display = "none";
+        registerForm.style.display = "none";
+        authToggleContainer.style.display = "none";
+        forgotPasswordView.style.display = "block";
+
+        forgotStep1Form.style.display = "flex";
+        forgotStep2Form.style.display = "none";
+        document.getElementById("forgotEmail").value = "";
+        document.getElementById("forgotAnswer").value = "";
+        document.getElementById("newPassword").value = "";
+      });
+    } else {
+      console.error("Forgot Password Link not found in DOM");
+    }
+
+    if (backToLoginBtn) backToLoginBtn.addEventListener("click", closeForgotView);
+    if (cancelResetBtn) cancelResetBtn.addEventListener("click", closeForgotView);
+
+    // Forgot Password Step 1: Get Question
+    if (forgotStep1Form) {
+      forgotStep1Form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("forgotEmail").value.trim();
+        const btn = document.getElementById("forgotStep1Submit");
+
+        if (!email) return showError("Please enter your email");
+
+        hideError();
+        setLoading(btn, true);
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/question`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(getErrorMessage(data, "Email not found"));
+          }
+
+          document.getElementById("securityQuestionDisplay").textContent = data.question;
+
+          forgotStep1Form.style.display = "none";
+          forgotStep2Form.style.display = "flex";
+          setLoading(btn, false); // Reset button state
+
+        } catch (err) {
+          showError(err.message);
+          setLoading(btn, false);
+        }
+      });
+    }
+
+    // Forgot Password Step 2: Reset Password
+    if (forgotStep2Form) {
+      forgotStep2Form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("forgotEmail").value.trim();
+        const answer = document.getElementById("forgotAnswer").value.trim();
+        const newPassword = document.getElementById("newPassword").value;
+        const btn = document.getElementById("forgotStep2Submit");
+
+        if (!answer || !newPassword) return showError("Please fill all fields");
+        if (newPassword.length < 6) return showError("Password must be at least 6 characters");
+
+        hideError();
+        setLoading(btn, true);
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/reset-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              security_answer: answer,
+              new_password: newPassword
+            })
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(getErrorMessage(data, "Failed to reset password"));
+          }
+
+          showSuccessOverlay("Password Reset!", "You can now login with your new password.");
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+
+        } catch (err) {
+          showError(err.message);
+          setLoading(btn, false);
+        }
+      });
+    }
+  }
+
+  function closeForgotView() {
+    forgotPasswordView.style.display = "none";
+    authToggleContainer.style.display = "flex";
+    switchAuthMode("login");
+  }
+
+  // Prevent default browser validation bubbles
+  document.querySelectorAll('input, select').forEach(input => {
+    input.addEventListener('invalid', (e) => {
+      e.preventDefault();
+      // focus the first invalid input
+      if (e.target.form.querySelector(':invalid') === e.target) {
+        showError(e.target.validationMessage);
+        e.target.focus();
+      }
+    });
+  });
+
+  if (registerForm) {
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("registerName").value.trim();
+      const email = document.getElementById("registerEmail").value.trim();
+      const password = document.getElementById("registerPassword").value;
+      const question = document.getElementById("registerQuestion").value;
+      const answer = document.getElementById("registerAnswer").value.trim();
+
+      const btn = document.getElementById("registerSubmit");
+
+      // Custom validation check
+      if (password.length < 6) {
+        showError("Password must be at least 6 characters");
+        return;
+      }
+
+      if (!question) {
+        showError("Please select a security question");
+        return;
+      }
+
+      hideError();
+      setLoading(btn, true);
+
+      try {
+        const res = await fetch(`${API_BASE}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            display_name: name,
+            security_question: question,
+            security_answer: answer
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(getErrorMessage(data, "Registration failed"));
+        }
+
+        localStorage.setItem("legalai_token", data.token);
+        localStorage.setItem("legalai_user", JSON.stringify(data.user));
+
+        showSuccessOverlay(`Welcome, ${data.user.display_name}!`, "Setting up your workspace...");
+
+        setTimeout(() => window.location.href = "/", 2000);
+
+      } catch (err) {
+        showError(err.message);
+        setLoading(btn, false);
+      }
+    });
+  }
+
+
+
   const questionInput = document.getElementById("questionInput");
   const sendBtn = document.getElementById("sendBtn");
 

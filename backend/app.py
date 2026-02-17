@@ -385,10 +385,20 @@ class RegisterBody(BaseModel):
     email: str
     password: str
     display_name: Optional[str] = None
+    security_question: str
+    security_answer: str
 
 class LoginBody(BaseModel):
     email: str
     password: str
+
+class GetQuestionBody(BaseModel):
+    email: str
+
+class ResetPasswordBody(BaseModel):
+    email: str
+    security_answer: str
+    new_password: str
 
 class AskBody(BaseModel):
     doc_id: Optional[str] = None
@@ -408,14 +418,24 @@ def register(body: RegisterBody):
         raise HTTPException(400, "Email and password are required")
     if len(body.password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters")
+    if not body.security_question or not body.security_answer:
+        raise HTTPException(400, "Security question and answer are required")
     
     existing = get_user_by_email(body.email)
     if existing:
         raise HTTPException(409, "An account with this email already exists")
     
-    hashed = hash_password(body.password)
+    hashed_pw = hash_password(body.password)
+    hashed_ans = hash_password(body.security_answer.lower().strip())
+
     try:
-        user = create_user(body.email, hashed, body.display_name)
+        user = create_user(
+            email=body.email, 
+            password_hash=hashed_pw, 
+            display_name=body.display_name,
+            security_question=body.security_question,
+            security_answer_hash=hashed_ans
+        )
     except Exception as e:
         print(f"[ERROR] Registration failed: {e}")
         raise HTTPException(500, "Registration failed")
@@ -429,6 +449,35 @@ def register(body: RegisterBody):
             "display_name": user["display_name"]
         }
     }
+
+
+@router.post("/auth/question")
+def get_security_question(body: GetQuestionBody):
+    from database import get_user_security_question
+    question = get_user_security_question(body.email)
+    if not question:
+        # Return 404 so UI knows email is invalid
+        raise HTTPException(404, "Email not found")
+    return {"question": question}
+
+
+@router.post("/auth/reset-password")
+def reset_password(body: ResetPasswordBody):
+    user = get_user_by_email(body.email)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Verify security answer
+    if not verify_password(body.security_answer.lower().strip(), user["security_answer_hash"]):
+        raise HTTPException(401, "Incorrect security answer")
+    
+    # Update password
+    new_hash = hash_password(body.new_password)
+    from database import update_password
+    if update_password(body.email, new_hash):
+        return {"message": "Password updated successfully"}
+    else:
+        raise HTTPException(500, "Failed to update password")
 
 
 @router.post("/login")
@@ -577,7 +626,43 @@ def remove_document(doc_id: str, request: Request):
 def ask_question(body: AskBody, request: Request):
     user = get_current_user(request)
     
-    # STATELESS HANDLING
+    # STATEFUL HANDLING (Prioritized if doc_id is present)
+    if body.doc_id:
+        doc = ensure_doc_in_cache(body.doc_id, user_id=user["id"])
+        if not doc:
+            raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
+
+        answer, _context = rag_qa(
+            body.question,
+            doc["pages"],
+            doc["index"],
+            doc["chat"]
+        )
+
+        doc["chat"].append({"user": body.question, "assistant": answer})
+
+        save_chat_message(body.doc_id, "user", body.question)
+        save_chat_message(body.doc_id, "assistant", answer)
+
+        evaluation = None
+        if body.evaluate:
+            try:
+                evaluation = evaluate_response(body.question, doc["full_text"], answer)
+            except Exception as e:
+                evaluation = {
+                    "helpfulness": None,
+                    "completeness": None,
+                    "relevance": None,
+                    "reasoning": f"Evaluation failed: {str(e)}"
+                }
+
+        return {
+            "answer": answer,
+            "chat_history": doc["chat"],
+            "evaluation": evaluation
+        }
+
+    # STATELESS HANDLING (Fallback if no doc_id)
     if body.full_text:
         prompt = f"""
 Use the provided document text to answer the question.
@@ -601,41 +686,6 @@ Question: {body.question}
             "chat_history": [],
             "evaluation": evaluation
         }
-
-    # STATEFUL HANDLING
-    doc = ensure_doc_in_cache(body.doc_id, user_id=user["id"])
-    if not doc:
-        raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
-
-    answer, _context = rag_qa(
-        body.question,
-        doc["pages"],
-        doc["index"],
-        doc["chat"]
-    )
-
-    doc["chat"].append({"user": body.question, "assistant": answer})
-
-    save_chat_message(body.doc_id, "user", body.question)
-    save_chat_message(body.doc_id, "assistant", answer)
-
-    evaluation = None
-    if body.evaluate:
-        try:
-            evaluation = evaluate_response(body.question, doc["full_text"], answer)
-        except Exception as e:
-            evaluation = {
-                "helpfulness": None,
-                "completeness": None,
-                "relevance": None,
-                "reasoning": f"Evaluation failed: {str(e)}"
-            }
-
-    return {
-        "answer": answer,
-        "chat_history": doc["chat"],
-        "evaluation": evaluation
-    }
 
 
 @router.post("/summarize")
