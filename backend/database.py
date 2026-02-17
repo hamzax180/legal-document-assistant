@@ -6,6 +6,7 @@ Supports SQLite (Local) and Postgres (Vercel).
 import sqlite3
 import json
 import os
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -50,13 +51,23 @@ def get_placeholder():
 
 
 SCHEMA_SQLITE = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
+    user_id TEXT,
     filename TEXT NOT NULL,
     full_text TEXT NOT NULL,
     structured_json TEXT,
     page_count INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS pages (
@@ -78,13 +89,23 @@ CREATE TABLE IF NOT EXISTS chat_history (
 """
 
 SCHEMA_POSTGRES = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
+    user_id TEXT,
     filename TEXT NOT NULL,
     full_text TEXT NOT NULL,
     structured_json TEXT,
     page_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS pages (
@@ -106,25 +127,105 @@ CREATE TABLE IF NOT EXISTS chat_history (
 """
 
 
+def _migrate_add_user_id(conn):
+    """Add user_id column to documents table if it doesn't exist (migration)."""
+    p = get_placeholder()
+    try:
+        cursor = conn.cursor()
+        if IS_VERCEL:
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'documents' AND column_name = 'user_id'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE documents ADD COLUMN user_id TEXT")
+                conn.commit()
+                print("[INFO] Migration: Added user_id column to documents", flush=True)
+        else:
+            cursor.execute("PRAGMA table_info(documents)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            if "user_id" not in columns:
+                cursor.execute("ALTER TABLE documents ADD COLUMN user_id TEXT")
+                conn.commit()
+                print("[INFO] Migration: Added user_id column to documents", flush=True)
+    except Exception as e:
+        print(f"[WARN] Migration check for user_id: {e}", flush=True)
+
+
 def init_db():
     try:
         conn = get_conn()
         if IS_VERCEL:
             with conn.cursor() as cur:
-                # Split schema execution for Postgres
-                # executing simpler statements is safer
                 cur.execute(SCHEMA_POSTGRES)
             conn.commit()
         else:
             conn.executescript(SCHEMA_SQLITE)
             conn.commit()
+        # Run migration for existing databases
+        _migrate_add_user_id(conn)
         conn.close()
     except Exception as e:
         print(f"[ERROR] Database init failed: {e}")
 
 
+# ======================== USER FUNCTIONS ========================
+
+def create_user(email: str, password_hash: str, display_name: str = None) -> dict:
+    """Create a new user and return the user dict."""
+    conn = get_conn()
+    p = get_placeholder()
+    user_id = str(uuid.uuid4())
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"INSERT INTO users (id, email, password_hash, display_name) "
+            f"VALUES ({p}, {p}, {p}, {p})",
+            (user_id, email.lower().strip(), password_hash, display_name or email.split("@")[0])
+        )
+        conn.commit()
+        return {"id": user_id, "email": email.lower().strip(), "display_name": display_name or email.split("@")[0]}
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    """Get user by email address."""
+    conn = get_conn()
+    p = get_placeholder()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM users WHERE email = {p}", (email.lower().strip(),))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    finally:
+        conn.close()
+
+
+def get_user_by_id(user_id: str) -> Optional[dict]:
+    """Get user by ID."""
+    conn = get_conn()
+    p = get_placeholder()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT id, email, display_name, created_at FROM users WHERE id = {p}", (user_id,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    finally:
+        conn.close()
+
+
+# ======================== DOCUMENT FUNCTIONS ========================
+
 def save_document(doc_id: str, filename: str, pages: List[str],
-                  structured: dict) -> None:
+                  structured: dict, user_id: str = None) -> None:
     conn = get_conn()
     full_text = "\n".join(pages)
     p = get_placeholder()
@@ -134,13 +235,12 @@ def save_document(doc_id: str, filename: str, pages: List[str],
         
         # Save document
         cursor.execute(
-            f"INSERT INTO documents (id, filename, full_text, structured_json, page_count) "
-            f"VALUES ({p}, {p}, {p}, {p}, {p})",
-            (doc_id, filename, full_text, json.dumps(structured), len(pages))
+            f"INSERT INTO documents (id, user_id, filename, full_text, structured_json, page_count) "
+            f"VALUES ({p}, {p}, {p}, {p}, {p}, {p})",
+            (doc_id, user_id, filename, full_text, json.dumps(structured), len(pages))
         )
         
         # Save pages
-        # For bulk insert, execute_batch or executemany is better, but loop is fine for small docs
         for i, page in enumerate(pages):
             cursor.execute(
                 f"INSERT INTO pages (doc_id, page_num, content) VALUES ({p}, {p}, {p})",
@@ -156,27 +256,36 @@ def save_document(doc_id: str, filename: str, pages: List[str],
         conn.close()
 
 
-def list_documents() -> List[dict]:
+def list_documents(user_id: str = None) -> List[dict]:
     conn = get_conn()
+    p = get_placeholder()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, filename, page_count, created_at FROM documents ORDER BY created_at DESC"
-        )
+        if user_id:
+            cursor.execute(
+                f"SELECT id, filename, page_count, created_at FROM documents WHERE user_id = {p} ORDER BY created_at DESC",
+                (user_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, filename, page_count, created_at FROM documents ORDER BY created_at DESC"
+            )
         rows = cursor.fetchall()
-        # Convert rows (which might be RealDictCursor or sqlite3.Row) to dicts
         return [dict(r) for r in rows]
     finally:
         conn.close()
 
 
-def get_document(doc_id: str) -> Optional[dict]:
+def get_document(doc_id: str, user_id: str = None) -> Optional[dict]:
     conn = get_conn()
     p = get_placeholder()
     try:
         cursor = conn.cursor()
         
-        cursor.execute(f"SELECT * FROM documents WHERE id = {p}", (doc_id,))
+        if user_id:
+            cursor.execute(f"SELECT * FROM documents WHERE id = {p} AND user_id = {p}", (doc_id, user_id))
+        else:
+            cursor.execute(f"SELECT * FROM documents WHERE id = {p}", (doc_id,))
         doc = cursor.fetchone()
         
         if not doc:
@@ -196,7 +305,6 @@ def get_document(doc_id: str) -> Optional[dict]:
         # Process chat history
         chat_pairs = []
         i = 0
-        # normalize to list of dicts first
         chat_list = [dict(c) for c in chats_rows]
         
         while i < len(chat_list):
@@ -213,8 +321,6 @@ def get_document(doc_id: str) -> Optional[dict]:
             else:
                 i += 1
 
-        # Handle created_at formatting differences if needed
-        # Postgres returns datetime object, SQLite returns string
         created_at = doc["created_at"]
         if isinstance(created_at, datetime):
             created_at = created_at.isoformat()
@@ -224,7 +330,7 @@ def get_document(doc_id: str) -> Optional[dict]:
             "filename": doc["filename"],
             "full_text": doc["full_text"],
             "structured": json.loads(doc["structured_json"]) if doc["structured_json"] else {},
-            "pages": [r["content"] for r in pages_rows], # Access by key for both row types
+            "pages": [r["content"] for r in pages_rows],
             "chat": chat_pairs,
             "page_count": doc["page_count"],
             "created_at": created_at,
@@ -249,12 +355,15 @@ def save_chat_message(doc_id: str, role: str, message: str) -> None:
         conn.close()
 
 
-def delete_document(doc_id: str) -> bool:
+def delete_document(doc_id: str, user_id: str = None) -> bool:
     conn = get_conn()
     p = get_placeholder()
     try:
         cursor = conn.cursor()
-        cursor.execute(f"DELETE FROM documents WHERE id = {p}", (doc_id,))
+        if user_id:
+            cursor.execute(f"DELETE FROM documents WHERE id = {p} AND user_id = {p}", (doc_id, user_id))
+        else:
+            cursor.execute(f"DELETE FROM documents WHERE id = {p}", (doc_id,))
         conn.commit()
         return cursor.rowcount > 0
     finally:
