@@ -1630,24 +1630,23 @@ footer a:hover {
     text-align: right;
   }
 
-  .suggest-box {
-    padding: 0 12px 10px;
-    gap: 6px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .suggest-box::-webkit-scrollbar {
-    display: none;
+  .suggest-chips {
+    padding: 0;
+    gap: 8px;
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .suggest-chip {
-    flex: 0 0 auto;
-    padding: 8px 14px;
-    font-size: 0.75rem;
-    white-space: nowrap;
+    flex: 1 1 100%;
+    /* Take full width but grow/shrink */
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    white-space: normal;
+    /* Allow text to wrap */
+    text-align: left;
+    line-height: 1.4;
+    border-radius: 12px;
   }
 
   footer {
