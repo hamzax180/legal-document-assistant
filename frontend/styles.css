@@ -1239,26 +1239,27 @@ button {
 
 .summary-generate-btn {
   width: 100%;
-  padding: 13px 20px;
+  padding: 12px 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border: none;
-  color: var(--bg-deepest);
+  background: rgba(110, 231, 255, 0.08);
+  border: 1px solid rgba(110, 231, 255, 0.2);
+  color: var(--accent);
   cursor: pointer;
   transition: all 0.3s ease;
   letter-spacing: 0.02em;
 }
 
 .summary-generate-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(110, 231, 255, 0.3);
-  filter: brightness(1.1);
+  background: rgba(110, 231, 255, 0.14);
+  border-color: rgba(110, 231, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(110, 231, 255, 0.1);
 }
 
 .summary-generate-btn:active {
