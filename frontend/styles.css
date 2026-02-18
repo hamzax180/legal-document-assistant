@@ -1319,38 +1319,38 @@ pre:empty {
 
 .evaluation-card {
   display: grid;
-  gap: 14px;
+  gap: 8px;
   background: linear-gradient(160deg, rgba(124, 124, 255, 0.10), rgba(2, 6, 23, 0.9));
   border: 1px solid rgba(124, 124, 255, 0.3);
   border-radius: var(--radius);
-  padding: 18px 20px;
-  margin: 0 20px 20px;
+  padding: 14px 16px;
+  margin: 0 16px 12px;
   animation: fadeIn 0.35s ease;
 }
 
 .eval-title {
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   color: var(--accent);
   letter-spacing: 0.03em;
 }
 
 .eval-row {
   display: grid;
-  grid-template-columns: 120px 1fr 50px;
+  grid-template-columns: 100px 1fr 40px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .eval-label {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .eval-bar {
-  height: 8px;
+  height: 6px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 999px;
   overflow: hidden;
@@ -1367,24 +1367,84 @@ pre:empty {
 .eval-score {
   text-align: right;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   color: var(--accent-warm);
   min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 .eval-reasoning {
-  margin-top: 6px;
-  padding: 14px;
+  margin-top: 4px;
+  padding: 10px 12px;
   background: rgba(2, 6, 23, 0.85);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-main);
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
-  line-height: 1.7;
+  line-height: 1.6;
+}
+
+
+/* ================================================================
+   CHAT WELCOME (Empty State)
+   ================================================================ */
+.chat-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+.chat-welcome-icon {
+  color: var(--accent);
+  animation: chatIconFloat 3s ease-in-out infinite;
+  margin-bottom: 16px;
+}
+
+.chat-welcome h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 10px;
+  animation: welcomePulse 4s ease-in-out infinite;
+}
+
+.chat-welcome p {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 320px;
+}
+
+@keyframes chatIconFloat {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes welcomePulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 
