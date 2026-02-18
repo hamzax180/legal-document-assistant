@@ -136,6 +136,8 @@ function initApp() {
     setTimeout(() => {
       toast.classList.add("toast-exiting");
       toast.addEventListener("animationend", () => toast.remove());
+      // Fallback removal if animation doesn't fire
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 600);
     }, duration);
   }
 
@@ -600,10 +602,70 @@ function initApp() {
       summaryEmpty.style.display = summaryBox.innerHTML.trim() ? "none" : "block";
     }
     if (jsonEmpty) {
-      jsonEmpty.style.display = jsonBox.textContent.trim() ? "none" : "block";
+      jsonEmpty.style.display = jsonBox.children.length > 0 ? "none" : "block";
     }
     if (suggestEmpty) {
       suggestEmpty.style.display = suggestBox.children.length > 0 ? "none" : "block";
+    }
+  }
+
+
+  // ===== RENDER STRUCTURED DATA AS STYLED CARDS =====
+  const FIELD_META = {
+    document_type: { icon: "📄", label: "Document Type" },
+    title: { icon: "📌", label: "Title" },
+    effective_date: { icon: "📅", label: "Effective Date" },
+    expiry_date: { icon: "⏳", label: "Expiry Date" },
+    dates: { icon: "🗓️", label: "Important Dates" },
+    parties: { icon: "👥", label: "Parties Involved" },
+    signatories: { icon: "✍️", label: "Signatories" },
+    jurisdiction: { icon: "⚖️", label: "Jurisdiction" },
+    key_terms: { icon: "🔑", label: "Key Terms" },
+    obligations: { icon: "📋", label: "Obligations" },
+    clauses: { icon: "📜", label: "Clauses" },
+    risks: { icon: "⚠️", label: "Risks & Liabilities" },
+    monetary_values: { icon: "💰", label: "Monetary Values" },
+    contact_info: { icon: "📧", label: "Contact Information" },
+  };
+
+  function renderStructuredData(data) {
+    jsonBox.innerHTML = "";
+    if (!data || typeof data !== "object" || data.error) {
+      jsonBox.innerHTML = `<div class="sd-error">Could not extract structured data.</div>`;
+      return;
+    }
+
+    for (const [key, value] of Object.entries(data)) {
+      // Skip empty values
+      if (value === "" || (Array.isArray(value) && value.length === 0)) continue;
+      // Skip unknown fields from old extractions
+      if (key === "summary" || key === "extracted_text_preview" || key === "raw_output") continue;
+
+      const meta = FIELD_META[key] || { icon: "📎", label: key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) };
+
+      const card = document.createElement("div");
+      card.className = "sd-card";
+
+      let content = "";
+      if (Array.isArray(value)) {
+        content = value.map(v => `<span class="sd-tag">${String(v).replace(/</g, '&lt;')}</span>`).join("");
+      } else {
+        content = `<span class="sd-value">${String(value).replace(/</g, '&lt;')}</span>`;
+      }
+
+      card.innerHTML = `
+        <div class="sd-card-header">
+          <span class="sd-icon">${meta.icon}</span>
+          <span class="sd-label">${meta.label}</span>
+        </div>
+        <div class="sd-card-body">${content}</div>
+      `;
+      jsonBox.appendChild(card);
+    }
+
+    // If nothing was rendered (all empty)
+    if (jsonBox.children.length === 0) {
+      jsonBox.innerHTML = `<div class="sd-empty">No structured data extracted. Try re-uploading the document.</div>`;
     }
   }
 
@@ -674,7 +736,7 @@ function initApp() {
         el.classList.toggle("active", el.dataset.id === docId);
       });
 
-      jsonBox.textContent = JSON.stringify(data.structured, null, 2);
+      renderStructuredData(data.structured);
 
       if (data.chat_history && data.chat_history.length) {
         renderHistory(data.chat_history);
@@ -727,7 +789,7 @@ function initApp() {
       if (docId === id) {
         docId = null;
         currentDocFullText = null;
-        jsonBox.textContent = "";
+        jsonBox.innerHTML = "";
         summaryBox.innerHTML = "";
         suggestBox.innerHTML = "";
         chatBox.innerHTML = `
@@ -843,7 +905,7 @@ function initApp() {
       currentDocFullText = data.full_text || null;
 
       uploadStatus.textContent = `✓ Uploaded: ${data.filename} (${data.pages} pages)`;
-      jsonBox.textContent = JSON.stringify(data.structured, null, 2);
+      renderStructuredData(data.structured);
       summaryBox.innerHTML = "";
 
       loadDocuments();

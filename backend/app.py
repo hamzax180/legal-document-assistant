@@ -257,24 +257,33 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
 
 # ================= STRUCTURED JSON =================
 STRUCT_PROMPT = """
-You are a legal document analyst. Extract structured information from the following document text.
+You are an expert legal document analyst. Analyze the following document text thoroughly and extract ALL structured information.
 
 Return ONLY valid JSON with this exact schema:
 {
-  "document_type": "The type of document (e.g. Contract, NDA, CV/Resume, Court Order, Agreement, Letter, Report, etc.)",
+  "document_type": "The type of document (e.g. Contract, NDA, CV/Resume, Court Order, Agreement, Letter, Report, Invoice, Memorandum, etc.)",
   "title": "The title or subject of the document",
-  "dates": ["List of important dates found in the document"],
-  "parties": ["List of people, companies, or organizations mentioned"],
-  "key_terms": ["List of important terms, concepts, or section headings"],
-  "summary": "A brief 2-3 sentence summary of the document's purpose and content",
-  "extracted_text_preview": "The first 500 characters of the document text as-is"
+  "effective_date": "The effective or start date of the document, or empty string if not found",
+  "expiry_date": "The expiration or end date, or empty string if not found",
+  "dates": ["All important dates mentioned in the document"],
+  "parties": ["All people, companies, or organizations mentioned with their roles if identifiable"],
+  "signatories": ["Names of people who signed or are expected to sign"],
+  "jurisdiction": "The legal jurisdiction or governing law mentioned, or empty string",
+  "key_terms": ["Important defined terms, legal concepts, or section headings"],
+  "obligations": ["Key obligations, duties, or responsibilities outlined"],
+  "clauses": ["Names or types of important clauses (e.g. Confidentiality, Termination, Indemnification, Non-Compete)"],
+  "risks": ["Any identified risks, penalties, or liability provisions"],
+  "monetary_values": ["Any monetary amounts, fees, salaries, or financial figures mentioned"],
+  "contact_info": ["Any email addresses, phone numbers, or physical addresses found"]
 }
 
-If a field cannot be determined, use an empty string or empty array. Do NOT omit any field.
-Return ONLY the JSON object, no markdown, no explanation.
+If a field cannot be determined from the text, use an empty string or empty array as appropriate.
+Do NOT omit any field. Do NOT add any fields not listed above.
+Return ONLY the JSON object, no markdown fences, no explanation.
 
 Document text:
 """
+
 
 
 def extract_structured_info(text: str):
