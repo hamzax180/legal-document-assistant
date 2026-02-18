@@ -7,13 +7,20 @@ A RAG-based legal document assistant that allows users to upload PDFs and ask qu
 **Access the live application here:** [https://legal-ai-doc-assistant.vercel.app](https://legal-ai-doc-assistant.vercel.app)
 
 ## Features
-- **PDF Upload & Parsing**: Extracts text from PDF documents instantly.
+- **User Authentication**: Secure Sign In/Registration with JWT and Session/Local Storage options.
 - **RAG Architecture**: Retrieves relevant context from the document to answer queries accurately.
 - **Gemini Flash Integration**: High-speed, low-latency responses.
 - **Premium UI**: Animated background, glassmorphism design, and real-time feedback.
-- **Persistent Chat**: Chat history and document metadata are saved locally (SQLite).
+- **Persistent Data**: User-scoped document storage and chat history (Postgres/SQLite).
+- **Security Features**: Password hashing (bcrypt), security questions for reset, and data isolation.
 - **Self-Evaluation**: Automatically grades answers on Helpfulness, Completeness, and Relevance.
 - **Privacy-First**: Documents are processed locally within the container.
+
+## Authentication & Login
+Each user has their own private workspace. The app includes:
+- **Sign In / Sign Up**: Secure access to your documents.
+- **Remember Me**: Option to stay logged in or use a temporary session.
+- **Password Recovery**: Reset your password using personalized security questions.
 
 ## Architecture
 The application is containerized using Docker and designed to run on Kubernetes with high availability.

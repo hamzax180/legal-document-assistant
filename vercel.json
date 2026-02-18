@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/login",
+            "destination": "/frontend/login.html"
+        },
+        {
             "source": "/hello",
             "destination": "/api/hello.py"
         },

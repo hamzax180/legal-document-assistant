@@ -10,24 +10,29 @@ import random
 import traceback
 from typing import Dict, Any, List, Optional
 
-# import fitz  <-- Removed to save space
 import numpy as np
-# REMOVED: import faiss
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, APIRouter
+import bcrypt
+import jwt
+from datetime import datetime, timedelta
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# from google import genai  <-- Lazy import to avoid hang?
-# REMOVED: from sentence_transformers import SentenceTransformer
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+    from database import (
+        init_db, save_document, get_document, list_documents,
+        delete_document, save_chat_message,
+        create_user, get_user_by_email, get_user_by_id
+    )
 except ImportError:
-    # Try fully qualified import if necessary (though sys.path fix should handle it)
-    from backend.database import init_db, save_document, get_document, list_documents, delete_document, save_chat_message
+    from backend.database import (
+        init_db, save_document, get_document, list_documents,
+        delete_document, save_chat_message,
+        create_user, get_user_by_email, get_user_by_id
+    )
 
 
 # ================= CUSTOM EXCEPTIONS =================
@@ -43,6 +48,9 @@ class GeminiError(Exception):
 
 # ================= CONFIG =================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+JWT_SECRET = os.getenv("JWT_SECRET", "legalai-secret-change-in-production-2026")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_HOURS = 72
 
 # Lazy init client
 client = None
@@ -70,9 +78,6 @@ def get_gemini_client():
 
 MODEL_ID = "gemini-2.5-flash"
 EMBEDDING_MODEL_ID = "text-embedding-004"
-
-# No local embedder: use API
-# embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 # ================= APP =================
@@ -104,6 +109,44 @@ def startup():
         print("[INFO] Database initialized successfully", flush=True)
     except Exception as e:
         print(f"[ERROR] Database initialization failed: {e}", flush=True)
+
+
+# ================= AUTH HELPERS =================
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def create_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS),
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def get_current_user(request: Request) -> dict:
+    """Extract and validate JWT from Authorization header."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(401, "Not authenticated")
+    
+    token = auth[7:]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user = get_user_by_id(payload["sub"])
+        if not user:
+            raise HTTPException(401, "User not found")
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
 
 
 # ================= EXCEPTION HANDLERS =================
@@ -166,7 +209,6 @@ def safe_generate(prompt: str) -> str:
                 time.sleep(wait_time)
                 continue
             
-            # Fallback logic for 404/Not Found/Invalid Argument implies model issue
             if "not found" in err_str or "404" in err_str or "invalid argument" in err_str:
                 print(f"[WARN] Model {MODEL_ID} failed ({e}), trying fallback to gemini-1.5-flash")
                 try:
@@ -177,8 +219,6 @@ def safe_generate(prompt: str) -> str:
                     return response.text.strip()
                 except Exception as e2:
                     print(f"[ERROR] Fallback model also failed: {e2}")
-                    # Raise original error to avoid confusion, or the new one?
-                    # Let's raise the fallback error as it's the last attempt
                     raise GeminiError(f"AI model error (fallback failed): {str(e2)}")
 
             raise GeminiError(f"AI model error: {str(e)}")
@@ -193,27 +233,21 @@ def get_embedding(text: str) -> List[float]:
         return [0.0] * 768
 
     try:
-        # Truncate to avoid limit (input limit is usually large (~3k-10k tokens), but let's be safe with 9000 chars)
         safe_text = text[:9000]
         result = client.models.embed_content(
             model=EMBEDDING_MODEL_ID,
             contents=safe_text
         )
-        # Handle new SDK response structure
         if hasattr(result, 'embeddings'):
              return result.embeddings[0].values
         return result.embedding
     except Exception as e:
         print(f"[ERROR] Embedding failed: {e}")
-        # Try fallback model if potentially model related (though embedding-004 is standard)
-        # We won't fallback embedding model for now as 004 is very standard.
-        
-        # Fallback: zero vector (not ideal but prevents crash)
         return [0.0] * 768
 
 
 import io
-import pypdf  # Lighter alternative to PyMuPDF
+import pypdf
 
 def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
     stream = io.BytesIO(pdf_bytes)
@@ -223,9 +257,23 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
 
 # ================= STRUCTURED JSON =================
 STRUCT_PROMPT = """
-Return ONLY valid JSON.
+You are a legal document analyst. Extract structured information from the following document text.
 
-Extract structured information from the text:
+Return ONLY valid JSON with this exact schema:
+{
+  "document_type": "The type of document (e.g. Contract, NDA, CV/Resume, Court Order, Agreement, Letter, Report, etc.)",
+  "title": "The title or subject of the document",
+  "dates": ["List of important dates found in the document"],
+  "parties": ["List of people, companies, or organizations mentioned"],
+  "key_terms": ["List of important terms, concepts, or section headings"],
+  "summary": "A brief 2-3 sentence summary of the document's purpose and content",
+  "extracted_text_preview": "The first 500 characters of the document text as-is"
+}
+
+If a field cannot be determined, use an empty string or empty array. Do NOT omit any field.
+Return ONLY the JSON object, no markdown, no explanation.
+
+Document text:
 """
 
 
@@ -252,12 +300,12 @@ def build_index(pages: List[str]):
     return np.array(embeddings, dtype="float32")
 
 
-def ensure_doc_in_cache(doc_id: str) -> dict:
+def ensure_doc_in_cache(doc_id: str, user_id: str = None) -> dict:
     """Load a document into in-memory cache if not already present."""
     if doc_id in DOCS:
         return DOCS[doc_id]
 
-    doc_data = get_document(doc_id)
+    doc_data = get_document(doc_id, user_id=user_id)
     if not doc_data:
         return None
 
@@ -277,22 +325,15 @@ def ensure_doc_in_cache(doc_id: str) -> dict:
 def rag_qa(query: str, pages: List[str], index_embeddings, history: List[dict]):
     q_emb = np.array(get_embedding(query), dtype="float32")
     
-    # Cosine similarity: (A . B) / (|A| * |B|)
-    # Note: If embeddings are normalized, |A|=1, |B|=1, so just dot product.
-    # But let's compute full cosine to be safe.
-    
     norm_index = np.linalg.norm(index_embeddings, axis=1)
     norm_query = np.linalg.norm(q_emb)
     
-    # Avoid division by zero
     if norm_query == 0:
         scores = np.zeros(len(pages))
     else:
-        # Add epsilon to avoid div by zero in index
         norm_index[norm_index == 0] = 1e-10
         scores = np.dot(index_embeddings, q_emb) / (norm_index * norm_query)
 
-    # Get top 3 indices
     top_k_indices = np.argsort(scores)[::-1][:3]
 
     context = "\n---\n".join(pages[i] for i in top_k_indices)
@@ -354,15 +395,137 @@ Answer: {answer}
 
 
 # ================= MODELS =================
+class RegisterBody(BaseModel):
+    email: str
+    password: str
+    display_name: Optional[str] = None
+    security_question: str
+    security_answer: str
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
+
+class GetQuestionBody(BaseModel):
+    email: str
+
+class ResetPasswordBody(BaseModel):
+    email: str
+    security_answer: str
+    new_password: str
+
 class AskBody(BaseModel):
     doc_id: Optional[str] = None
     question: str
     evaluate: bool = True
-    full_text: Optional[str] = None  # For stateless mode
+    full_text: Optional[str] = None
 
 class StatelessBody(BaseModel):
     doc_id: Optional[str] = None
     full_text: Optional[str] = None
+
+
+# ================= AUTH ROUTES =================
+@router.post("/register")
+def register(body: RegisterBody):
+    if not body.email or not body.password:
+        raise HTTPException(400, "Email and password are required")
+    if len(body.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    if not body.security_question or not body.security_answer:
+        raise HTTPException(400, "Security question and answer are required")
+    
+    existing = get_user_by_email(body.email)
+    if existing:
+        raise HTTPException(409, "An account with this email already exists")
+    
+    hashed_pw = hash_password(body.password)
+    hashed_ans = hash_password(body.security_answer.lower().strip())
+
+    try:
+        user = create_user(
+            email=body.email, 
+            password_hash=hashed_pw, 
+            display_name=body.display_name,
+            security_question=body.security_question,
+            security_answer_hash=hashed_ans
+        )
+    except Exception as e:
+        print(f"[ERROR] Registration failed: {e}")
+        raise HTTPException(500, "Registration failed")
+    
+    token = create_token(user["id"], user["email"])
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"]
+        }
+    }
+
+
+@router.post("/auth/question")
+def get_security_question(body: GetQuestionBody):
+    from database import get_user_security_question
+    question = get_user_security_question(body.email)
+    if not question:
+        # Return 404 so UI knows email is invalid
+        raise HTTPException(404, "Email not found")
+    return {"question": question}
+
+
+@router.post("/auth/reset-password")
+def reset_password(body: ResetPasswordBody):
+    user = get_user_by_email(body.email)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Verify security answer
+    if not verify_password(body.security_answer.lower().strip(), user["security_answer_hash"]):
+        raise HTTPException(401, "Incorrect security answer")
+    
+    # Update password
+    new_hash = hash_password(body.new_password)
+    from database import update_password
+    if update_password(body.email, new_hash):
+        return {"message": "Password updated successfully"}
+    else:
+        raise HTTPException(500, "Failed to update password")
+
+
+@router.post("/login")
+def login(body: LoginBody):
+    if not body.email or not body.password:
+        raise HTTPException(400, "Email and password are required")
+    
+    user = get_user_by_email(body.email)
+    if not user:
+        raise HTTPException(401, "Invalid email or password")
+    
+    if not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid email or password")
+    
+    token = create_token(user["id"], user["email"])
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"]
+        }
+    }
+
+
+@router.get("/me")
+def get_me(request: Request):
+    user = get_current_user(request)
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "display_name": user["display_name"]
+    }
+
 
 # ================= ROUTES =================
 @router.get("/")
@@ -371,11 +534,13 @@ def root():
 
 
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(request: Request, file: UploadFile = File(...)):
+    user = get_current_user(request)
+    
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files allowed")
 
-    print(f"[INFO] Uploading file: {file.filename}")
+    print(f"[INFO] Uploading file: {file.filename} (user: {user['email']})")
     pdf_bytes = await file.read()
     print(f"[INFO] File read, size: {len(pdf_bytes)} bytes")
     
@@ -386,12 +551,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         print(f"[ERROR] PDF extraction failed: {e}")
         raise HTTPException(500, f"PDF processing failed: {str(e)}")
 
-    # In stateless mode for Vercel, we might skip indexing to save time/resources
-    # But let's keep it if we can, or just rely on full_text return.
-    
     structured = {}
-    # Skip structured extraction for speed in stateless demo if needed, 
-    # but let's try to keep it.
     try:
         structured = extract_structured_info("\n".join(pages))
         print(f"[INFO] Structured info extracted")
@@ -402,9 +562,9 @@ async def upload_pdf(file: UploadFile = File(...)):
     doc_id = str(uuid.uuid4())
     full_text = "\n".join(pages)
 
-    # Persist to SQLite (Best Effort)
+    # Persist to DB
     try:
-        save_document(doc_id, file.filename, pages, structured)
+        save_document(doc_id, file.filename, pages, structured, user_id=user["id"])
         print(f"[INFO] Document saved to DB: {doc_id}")
     except Exception as e:
         print(f"[ERROR] Database save failed: {e}")
@@ -421,36 +581,36 @@ async def upload_pdf(file: UploadFile = File(...)):
         }
     except Exception as e:
         print(f"[ERROR] Indexing failed: {e}")
-        # Continue without index (will force stateless mode downstream)
 
     return {
         "doc_id": doc_id,
         "filename": file.filename,
         "structured": structured,
         "pages": len(pages),
-        "full_text": full_text  # RETURN THIS for stateless client-side storage
+        "full_text": full_text
     }
 
 
 @router.get("/documents")
-def get_all_documents():
-    """List all uploaded documents."""
+def get_all_documents(request: Request):
+    """List all uploaded documents for the current user."""
+    user = get_current_user(request)
     try:
-        return list_documents()
+        return list_documents(user_id=user["id"])
     except Exception as e:
         print(f"[ERROR] listing documents failed: {e}")
         return []
 
 
 @router.get("/documents/{doc_id}")
-def get_single_document(doc_id: str):
-    """Load a document by ID, including structured data and chat history."""
-    doc_data = get_document(doc_id)
+def get_single_document(doc_id: str, request: Request):
+    """Load a document by ID (must belong to current user)."""
+    user = get_current_user(request)
+    doc_data = get_document(doc_id, user_id=user["id"])
     if not doc_data:
         raise HTTPException(404, "Document not found")
 
-    # Ensure it's in cache for future Q&A
-    ensure_doc_in_cache(doc_id)
+    ensure_doc_in_cache(doc_id, user_id=user["id"])
 
     return {
         "doc_id": doc_data["id"],
@@ -463,25 +623,62 @@ def get_single_document(doc_id: str):
 
 
 @router.delete("/documents/{doc_id}")
-def remove_document(doc_id: str):
-    """Delete a document and all its data."""
+def remove_document(doc_id: str, request: Request):
+    """Delete a document (must belong to current user)."""
+    user = get_current_user(request)
+    
     if doc_id in DOCS:
         del DOCS[doc_id]
 
-    if not delete_document(doc_id):
+    if not delete_document(doc_id, user_id=user["id"]):
         raise HTTPException(404, "Document not found")
 
     return {"message": "Document deleted"}
 
 
 @router.post("/ask")
-def ask_question(body: AskBody):
-    # STATELESS HANDLING
+def ask_question(body: AskBody, request: Request):
+    user = get_current_user(request)
+    
+    # STATEFUL HANDLING (Prioritized if doc_id is present)
+    if body.doc_id:
+        doc = ensure_doc_in_cache(body.doc_id, user_id=user["id"])
+        if not doc:
+            raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
+
+        answer, _context = rag_qa(
+            body.question,
+            doc["pages"],
+            doc["index"],
+            doc["chat"]
+        )
+
+        doc["chat"].append({"user": body.question, "assistant": answer})
+
+        save_chat_message(body.doc_id, "user", body.question)
+        save_chat_message(body.doc_id, "assistant", answer)
+
+        evaluation = None
+        if body.evaluate:
+            try:
+                evaluation = evaluate_response(body.question, doc["full_text"], answer)
+            except Exception as e:
+                evaluation = {
+                    "helpfulness": None,
+                    "completeness": None,
+                    "relevance": None,
+                    "reasoning": f"Evaluation failed: {str(e)}"
+                }
+
+        return {
+            "answer": answer,
+            "chat_history": doc["chat"],
+            "evaluation": evaluation,
+            "context": _context
+        }
+
+    # STATELESS HANDLING (Fallback if no doc_id)
     if body.full_text:
-        # Context Stuffing (Best for Vercel/Stateless)
-        # We skip RAG index lookup and just dump text into prompt.
-        # Gemini Flash has 1M context, so this is fine for most docs.
-        
         prompt = f"""
 Use the provided document text to answer the question.
 
@@ -492,9 +689,6 @@ Question: {body.question}
 """
         answer = safe_generate(prompt)
         
-        # We don't have persistent chat history in stateless mode unless client sends it.
-        # For this demo, we just return the answer.
-        
         evaluation = None
         if body.evaluate:
              try:
@@ -504,57 +698,22 @@ Question: {body.question}
 
         return {
             "answer": answer,
-            "chat_history": [], # Stateless, we don't track history here
+            "chat_history": [],
             "evaluation": evaluation
         }
 
-    # STATEFUL HANDLING (Legacy/Local)
-    doc = ensure_doc_in_cache(body.doc_id)
-    if not doc:
-        raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
-
-    answer, _context = rag_qa(
-        body.question,
-        doc["pages"],
-        doc["index"],
-        doc["chat"]
-    )
-
-    doc["chat"].append({"user": body.question, "assistant": answer})
-
-    # Persist chat to SQLite
-    save_chat_message(body.doc_id, "user", body.question)
-    save_chat_message(body.doc_id, "assistant", answer)
-
-    evaluation = None
-    if body.evaluate:
-        try:
-            evaluation = evaluate_response(body.question, doc["full_text"], answer)
-        except Exception as e:
-            evaluation = {
-                "helpfulness": None,
-                "completeness": None,
-                "relevance": None,
-                "reasoning": f"Evaluation failed: {str(e)}"
-            }
-
-    return {
-        "answer": answer,
-        "chat_history": doc["chat"],
-        "evaluation": evaluation
-    }
-
 
 @router.post("/summarize")
-def summarize_document(body: StatelessBody):
+def summarize_document(body: StatelessBody, request: Request):
     """Generate a comprehensive summary of the entire document."""
+    user = get_current_user(request)
     
     text_to_summarize = None
     
     if body.full_text:
         text_to_summarize = body.full_text
     else:
-        doc = ensure_doc_in_cache(body.doc_id)
+        doc = ensure_doc_in_cache(body.doc_id, user_id=user["id"])
         if doc:
             text_to_summarize = doc['full_text']
             
@@ -577,23 +736,23 @@ Summarize each major section of the document.
 ---
 Document Text:
 {text_to_summarize[:100000]} 
-""" 
-# Limit to 100k chars to be safe, though Flash handles more.
+"""
 
     result = safe_generate(prompt)
     return {"summary": result}
 
 
 @router.post("/suggest")
-def suggest_questions(body: StatelessBody):
+def suggest_questions(body: StatelessBody, request: Request):
     """Auto-generate relevant questions about the document."""
+    user = get_current_user(request)
     
     text_for_context = None
     
     if body.full_text:
          text_for_context = body.full_text
     else:
-        doc = ensure_doc_in_cache(body.doc_id)
+        doc = ensure_doc_in_cache(body.doc_id, user_id=user["id"])
         if doc:
             text_for_context = doc['full_text']
             

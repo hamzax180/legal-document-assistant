@@ -1,16 +1,18 @@
-# Deployment Architecture
+## Production (Vercel)
+- **Frontend & Backend**: Deployed as a unified serverless application on Vercel.
+- **API Routing**: Rewrites configured in `vercel.json` for clean URLs and `/api` proxying.
+- **Database**: 
+    - **Vercel Postgres**: Primary production database for user data and document persistence.
+    - **SQLite**: Local fallback/development database.
+- **Secrets**: Environment variables (`GEMINI_API_KEY`, `POSTGRES_URL`, `JWT_SECRET`) managed via Vercel Dashboard.
 
-## Kubernetes (K8s)
-- **Frontend**: Served via Nginx Pod. Exposes port 30888 via a `NodePort` Service.
-- **Backend**: Python/FastAPI Pod. Exposes port 8000 via a `ClusterIP` Service.
+## Kubernetes (K8s) — Hybrid/On-Prem
+- **Frontend**: Served via Nginx Pod. Exposes port 80 (standard) or NodePort.
+- **Backend**: Python/FastAPI Pod. 
 - **Secrets**: `backend-secret` securely stores the `GEMINI_API_KEY`.
-- **Scaling**: Configured for replicas (default 2, scalable).
+- **Scaling**: Optimized for replica-based horizontal scaling.
 
-## Docker Compose (Local Dev)
-- **Frontend**: Runs on port `3000`.
-- **Backend**: Runs on port `8000`.
-- **Volumes**: Local SQLite DB is mounted for persistence (`./backend/legal_docs.db:/app/legal_docs.db`).
+## Docker & Docker Compose
+- **Unified Stack**: Runs both Python backend and Nginx frontend.
+- **Volumes**: Data persisted via local SQLite mount.
 
-## Docker Structure
-- **Backend**: `python:3.9-slim`. Optimized with multi-stage builds.
-- **Frontend**: `nginx:alpine`. Static assets + proxy config.
