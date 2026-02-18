@@ -1036,6 +1036,20 @@ function initApp() {
         evalBox.textContent = "No evaluation returned.";
       }
 
+      // ===== SHOW CONTEXT / SOURCES =====
+      if (data.context) {
+        const contextDiv = document.createElement("div");
+        contextDiv.className = "evaluation-card";
+        contextDiv.style.marginTop = "1rem";
+        contextDiv.innerHTML = `
+          <div class="eval-title">Source Text (Context)</div>
+          <div class="eval-reasoning" style="max-height: 300px; overflow-y: auto; font-size: 0.9em; white-space: pre-wrap; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+            ${data.context.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+          </div>
+        `;
+        evalBox.appendChild(contextDiv);
+      }
+
     } catch (e) {
       removeTypingIndicator();
       addMsg("assistant", "Could not connect to the server. Is the backend running?");

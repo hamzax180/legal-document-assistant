@@ -257,6 +257,15 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> List[str]:
 
 # ================= STRUCTURED JSON =================
 STRUCT_PROMPT = """
+You are a legal AI. Extract the following structural information from the document text into valid JSON format:
+{
+  "document_type": "Contract, NDA, Court Order, etc.",
+  "title": "Title of the document",
+  "dates": ["list of relevant dates found"],
+  "parties": ["list of organizations or people involved"],
+  "key_terms": ["list of defined terms or header concepts"],
+  "summary": "Brief 1-sentence summary"
+}
 Return ONLY valid JSON.
 
 Extract structured information from the text:
@@ -632,7 +641,7 @@ def ask_question(body: AskBody, request: Request):
         if not doc:
             raise HTTPException(404, "Document not found. It may have been deleted. Please re-upload.")
 
-        answer, _context = rag_qa(
+        answer, context = rag_qa(
             body.question,
             doc["pages"],
             doc["index"],
@@ -658,6 +667,7 @@ def ask_question(body: AskBody, request: Request):
 
         return {
             "answer": answer,
+            "context": context,
             "chat_history": doc["chat"],
             "evaluation": evaluation
         }
