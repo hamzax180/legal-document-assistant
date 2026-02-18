@@ -603,13 +603,74 @@ body {
 
 .upload-file-name {
   margin-top: 12px;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--accent-warm);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  text-align: center;
+  padding: 8px 12px;
+  background: rgba(255, 200, 100, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 200, 100, 0.15);
 }
 
 .upload-file-name:empty {
   display: none;
+}
+
+.upload-progress {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.upload-progress-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% 100%;
+  animation: progressShimmer 1.5s ease-in-out infinite;
+}
+
+.upload-progress-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  animation: analyzeGlow 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+  0% {
+    background-position: 200% center;
+  }
+
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes analyzeGlow {
+
+  0%,
+  100% {
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  50% {
+    color: var(--accent);
+    opacity: 1;
+  }
 }
 
 .upload-btn {
