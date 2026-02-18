@@ -1213,6 +1213,43 @@ button {
 }
 
 
+
+/* ================================================================
+   SUMMARY BUTTON BAR (Bottom-pinned)
+   ================================================================ */
+.summary-btn-bar {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-soft);
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.summary-generate-btn {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(110, 231, 255, 0.12), rgba(124, 124, 255, 0.12));
+  border: 1px solid rgba(110, 231, 255, 0.25);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.summary-generate-btn:hover {
+  background: linear-gradient(135deg, rgba(110, 231, 255, 0.2), rgba(124, 124, 255, 0.2));
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(110, 231, 255, 0.15);
+}
+
+
 /* ================================================================
    PRE (General)
    ================================================================ */
