@@ -1215,6 +1215,21 @@ button {
 
 
 /* ================================================================
+   SUMMARY TAB LAYOUT
+   ================================================================ */
+#tab-summary.active {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.summary-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+}
+
+
+/* ================================================================
    SUMMARY BUTTON BAR (Bottom-pinned)
    ================================================================ */
 .summary-btn-bar {
